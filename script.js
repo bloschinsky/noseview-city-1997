@@ -20,6 +20,7 @@
       const settingsButton = document.getElementById("settings-button");
       const settingsModal = document.getElementById("settings-modal");
       const settingsClose = document.getElementById("settings-close");
+      const hudButton = document.getElementById("hud-button");
       const digitalRainButton = document.getElementById("digital-rain-button");
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
       const errorBox = document.getElementById("webgl-error");
@@ -532,6 +533,16 @@
         }
       }
 
+      let hudEnabled = true;
+
+      function setHudEnabled(enabled) {
+        hudEnabled = enabled;
+        canvasWrap.classList.toggle("hud-hidden", !enabled);
+        hudButton.classList.toggle("is-active", enabled);
+        hudButton.setAttribute("aria-pressed", String(enabled));
+        hudButton.textContent = `HUD: ${enabled ? "ON" : "OFF"}`;
+      }
+
       const rainGlyphs = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ<>[]{}\\/|:;*+-=";
       const rainColumnWidth = 7;
       const rainGlyphFontSize = 12;
@@ -668,6 +679,8 @@
 
       settingsButton.addEventListener("click", openSettings);
       settingsClose.addEventListener("click", closeSettings);
+      hudButton.addEventListener("click", () => setHudEnabled(!hudEnabled));
+      analogButton.addEventListener("click", () => setAnalogVision(!analogVisionEnabled));
       digitalRainButton.addEventListener("click", () => setDigitalRain(!digitalRainEnabled));
       settingsModal.addEventListener("click", event => {
         if (event.target === settingsModal) closeSettings();
@@ -971,7 +984,6 @@
 
       document.getElementById("reset-button").addEventListener("click", resetCamera);
       document.getElementById("speed-button").addEventListener("click", cycleSpeed);
-      analogButton.addEventListener("click", () => setAnalogVision(!analogVisionEnabled));
       document.getElementById("regen-button").addEventListener("click", () => {
         currentSeed = (Date.now() ^ Math.floor(Math.random() * 0xffffffff)) >>> 0;
         buildCity(currentSeed);

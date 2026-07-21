@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="uk">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
@@ -29,7 +29,7 @@
           <div class="box-title">NAVIGATION DISPLAY — LIVE WEBGL FEED</div>
           <div class="screen-shell">
             <div class="canvas-wrap">
-              <canvas id="gl-canvas" width="640" height="480" aria-label="Інтерактивна тривимірна карта міста"></canvas>
+              <canvas id="gl-canvas" width="640" height="480" aria-label="Interactive three-dimensional city map"></canvas>
               <canvas id="analog-glow-canvas" class="analog-glow" width="640" height="480" aria-hidden="true"></canvas>
               <canvas id="analog-noise-canvas" class="analog-noise" width="320" height="240" aria-hidden="true"></canvas>
               <div class="analog-beam" aria-hidden="true"></div>
@@ -49,7 +49,7 @@
               </div>
             </div>
 
-            <table class="status-table" aria-label="Параметри польоту">
+            <table class="status-table" aria-label="Flight parameters">
               <tr>
                 <td>X: <span id="pos-x">0.0</span></td>
                 <td>Y: <span id="pos-y">10.0</span></td>
@@ -71,30 +71,28 @@
           <div class="controls-cell-inner">
             <div class="control-panel">
               <div class="panel-label">MOVEMENT CONTROL</div>
-              <div class="dpad" aria-label="Хрестовина руху">
-                <button class="pad-button up" data-action="forward" aria-label="Рух уперед">▲<small>FORWARD</small></button>
-                <button class="pad-button left" data-action="strafeLeft" aria-label="Рух ліворуч">◀<small>LEFT</small></button>
+              <div class="dpad" aria-label="Movement controls">
+                <button class="pad-button up" data-action="forward" aria-label="Move forward">▲<small>FORWARD</small></button>
+                <button class="pad-button left" data-action="strafeLeft" aria-label="Move left">◀<small>LEFT</small></button>
                 <div class="center">MOVE<br>PAD</div>
-                <button class="pad-button right" data-action="strafeRight" aria-label="Рух праворуч">▶<small>RIGHT</small></button>
-                <button class="pad-button down" data-action="backward" aria-label="Рух назад">▼<small>BACK</small></button>
+                <button class="pad-button right" data-action="strafeRight" aria-label="Move right">▶<small>RIGHT</small></button>
+                <button class="pad-button down" data-action="backward" aria-label="Move backward">▼<small>BACK</small></button>
               </div>
             </div>
 
             <div class="control-panel">
               <div class="panel-label">VIEW CONTROL</div>
-              <div class="dpad" aria-label="Хрестовина огляду">
-                <button class="pad-button up" data-action="lookUp" aria-label="Погляд угору">▲<small>LOOK UP</small></button>
-                <button class="pad-button left" data-action="turnLeft" aria-label="Поворот ліворуч">◀<small>TURN L</small></button>
+              <div class="dpad" aria-label="View controls">
+                <button class="pad-button up" data-action="lookUp" aria-label="Look up">▲<small>LOOK UP</small></button>
+                <button class="pad-button left" data-action="turnLeft" aria-label="Turn left">◀<small>TURN L</small></button>
                 <div class="center">VIEW<br>PAD</div>
-                <button class="pad-button right" data-action="turnRight" aria-label="Поворот праворуч">▶<small>TURN R</small></button>
-                <button class="pad-button down" data-action="lookDown" aria-label="Погляд униз">▼<small>LOOK DN</small></button>
+                <button class="pad-button right" data-action="turnRight" aria-label="Turn right">▶<small>TURN R</small></button>
+                <button class="pad-button down" data-action="lookDown" aria-label="Look down">▼<small>LOOK DN</small></button>
               </div>
             </div>
 
             <div class="utility-buttons">
-              <button id="reset-button">RESET POSITION</button>
-              <button id="speed-button">SPEED: NORMAL</button>
-              <button id="analog-button" class="wide" aria-pressed="false">ANALOG VISION: OFF</button>
+              <button id="reset-button" class="wide">RESET POSITION</button>
               <button id="sound-button" class="wide" aria-pressed="false">SOUND: OFF</button>
               <button id="settings-button" class="wide">SETTINGS</button>
               <button id="regen-button" class="wide">GENERATE NEW CITY</button>
@@ -102,8 +100,8 @@
 
             <div class="help">
               <b>KEYBOARD PILOTS:</b><br>
-              W/A/S/D — рух &nbsp;|&nbsp; Стрілки — огляд<br>
-              R — стартова позиція &nbsp;|&nbsp; F — швидкість<br><br>
+              W/A/S/D — move &nbsp;|&nbsp; Arrow keys — look around<br>
+              R — reset position &nbsp;|&nbsp; F — cycle speed<br><br>
               <b>WARNING:</b> Collision avoidance module was too expensive and is not installed.
             </div>
           </div>
@@ -126,8 +124,15 @@
       <div class="settings-content">
         <div class="settings-group">
           <div class="settings-group-title">DISPLAY EFFECTS</div>
+          <button id="hud-button" class="is-active" type="button" aria-pressed="true">HUD: ON</button>
+          <button id="analog-button" type="button" aria-pressed="false">ANALOG VISION: OFF</button>
           <button id="digital-rain-button" type="button" aria-pressed="false">DIGITAL RAIN: OFF</button>
-          <p>Render a falling green terminal code signal behind the city.</p>
+          <p>Configure flight overlays and background display effects.</p>
+        </div>
+        <div class="settings-group">
+          <div class="settings-group-title">FLIGHT CONTROL</div>
+          <button id="speed-button" type="button">SPEED: NORMAL</button>
+          <p>Select the camera movement speed.</p>
         </div>
       </div>
     </div>

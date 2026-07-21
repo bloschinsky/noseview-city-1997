@@ -184,6 +184,8 @@
       text-shadow: 0 0 4px #00ff66, 0 0 10px rgba(0, 255, 102, 0.75);
     }
 
+    .canvas-wrap.hud-hidden .hud { display: none; }
+
     @keyframes analog-sweep {
       from { top: -8%; }
       to { top: 108%; }
@@ -208,8 +210,9 @@
       width: 36px;
       height: 22px;
       transform: translate(-50%, -50%);
-      border-left: 2px solid #00ff66;
-      border-right: 2px solid #00ff66;
+      border-left: 2px solid #ff4d1f;
+      border-right: 2px solid #ff4d1f;
+      filter: drop-shadow(0 0 4px rgba(255, 77, 31, 0.85));
     }
 
     .crosshair::before {
@@ -218,7 +221,7 @@
       left: -10px;
       right: -10px;
       top: 10px;
-      border-top: 2px solid #00ff66;
+      border-top: 2px solid #ff4d1f;
     }
 
     .corner { position: absolute; width: 23px; height: 23px; }
@@ -335,6 +338,7 @@
 
     #analog-button.is-active,
     #sound-button.is-active,
+    #hud-button.is-active,
     #digital-rain-button.is-active {
       color: #00ff66;
       background: #001b0a;
@@ -390,6 +394,8 @@
       background: #b8b8b8;
     }
 
+    .settings-group + .settings-group { margin-top: 8px; }
+
     .settings-group-title {
       margin-bottom: 8px;
       padding: 3px 5px;
@@ -403,6 +409,8 @@
       min-height: 42px;
       font-size: 11px;
     }
+
+    .settings-group button + button { margin-top: 5px; }
 
     .settings-group p {
       margin: 8px 2px 0;
