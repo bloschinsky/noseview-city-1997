@@ -109,6 +109,7 @@
 
     .scanlines,
     .analog-glow,
+    .analog-noise,
     .hud {
       position: absolute;
       inset: 0;
@@ -125,9 +126,18 @@
       transition: opacity 160ms linear;
     }
 
+    .analog-noise {
+      z-index: 2;
+      opacity: 0;
+      background: transparent;
+      mix-blend-mode: screen;
+      image-rendering: auto;
+      transition: opacity 120ms linear;
+    }
+
     .analog-beam {
       position: absolute;
-      z-index: 2;
+      z-index: 3;
       left: 0;
       right: 0;
       top: -8%;
@@ -139,7 +149,7 @@
     }
 
     .scanlines {
-      z-index: 3;
+      z-index: 4;
       opacity: 0;
       background:
         linear-gradient(rgba(0, 255, 90, 0.025), rgba(0, 255, 90, 0.025)),
@@ -154,13 +164,14 @@
     }
 
     .hud {
-      z-index: 4;
+      z-index: 5;
       color: #00eaff;
       font: bold 14px "Courier New", monospace;
       text-shadow: 0 0 4px #0066ff;
     }
 
     .canvas-wrap.analog-vision .analog-glow { opacity: 0.32; }
+    .canvas-wrap.analog-vision .analog-noise { opacity: var(--analog-noise-opacity, 0.11); }
     .canvas-wrap.analog-vision .scanlines { opacity: 0.2; }
 
     .canvas-wrap.analog-vision .analog-beam {
