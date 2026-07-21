@@ -344,6 +344,15 @@
         resetCamera();
       });
 
+      function getForwardDirection() {
+        const cosPitch = Math.cos(camera.pitch);
+        return [
+          Math.sin(camera.yaw) * cosPitch,
+          Math.sin(camera.pitch),
+          -Math.cos(camera.yaw) * cosPitch
+        ];
+      }
+
       function updateCamera(deltaTime) {
         const mode = speedModes[speedIndex];
         const turnStep = mode.turn * Math.PI / 180 * deltaTime;
@@ -357,8 +366,7 @@
         const pitchLimit = 75 * Math.PI / 180;
         camera.pitch = Math.max(-pitchLimit, Math.min(pitchLimit, camera.pitch));
 
-        const forwardX = Math.sin(camera.yaw);
-        const forwardZ = -Math.cos(camera.yaw);
+        const forward = getForwardDirection();
         const rightX = Math.cos(camera.yaw);
         const rightZ = Math.sin(camera.yaw);
         let moveForward = Number(controls.forward) - Number(controls.backward);
@@ -368,8 +376,9 @@
           moveForward /= magnitude;
           moveRight /= magnitude;
         }
-        camera.x += (forwardX * moveForward + rightX * moveRight) * moveStep;
-        camera.z += (forwardZ * moveForward + rightZ * moveRight) * moveStep;
+        camera.x += (forward[0] * moveForward + rightX * moveRight) * moveStep;
+        camera.y += forward[1] * moveForward * moveStep;
+        camera.z += (forward[2] * moveForward + rightZ * moveRight) * moveStep;
       }
 
       function drawGeometry(geometry, primitive, color) {
@@ -436,12 +445,7 @@
         previousTime = time;
         updateCamera(deltaTime);
 
-        const cosPitch = Math.cos(camera.pitch);
-        const forward = [
-          Math.sin(camera.yaw) * cosPitch,
-          Math.sin(camera.pitch),
-          -Math.cos(camera.yaw) * cosPitch
-        ];
+        const forward = getForwardDirection();
         const eye = [camera.x, camera.y, camera.z];
         const target = [camera.x + forward[0], camera.y + forward[1], camera.z + forward[2]];
         const view = lookAt(eye, target, [0, 1, 0]);
