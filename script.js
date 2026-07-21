@@ -153,6 +153,7 @@
         for (const index of triangles) faces.push(v[index][0], v[index][1], v[index][2]);
         const pairs = [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]];
         for (const pair of pairs) addLine(edges, v[pair[0]], v[pair[1]]);
+        return { minX: x0, maxX: x1, minY: y0, maxY: y1, minZ: z0, maxZ: z1 };
       }
 
       function makeRng(seed) {
@@ -189,7 +190,11 @@
       let cityFaces = null;
       let cityEdges = null;
       let antennaLines = null;
+      let buildingColliders = [];
       let currentSeed = 19810001;
+
+      const cameraRadius = 0.6;
+      const maxCollisionStep = 0.2;
 
       function deleteGeometry(geometry) {
         if (geometry && geometry.buffer) gl.deleteBuffer(geometry.buffer);
@@ -208,6 +213,7 @@
         const faces = [];
         const edges = [];
         const antennas = [];
+        const colliders = [];
         const buildings = lots.slice(0, 26);
 
         buildings.forEach((lot, index) => {
@@ -217,13 +223,13 @@
           const depth = 6.2 + random() * 3.5;
           let height = 7 + random() * 20;
           if (index % 9 === 0) height += 11;
-          addBox(faces, edges, x, z, width, depth, height, 0.03);
+          colliders.push(addBox(faces, edges, x, z, width, depth, height, 0.03));
 
           if (index % 5 === 0 && height > 17) {
             const tierHeight = 3.5 + random() * 5;
             const tierWidth = width * (0.48 + random() * 0.18);
             const tierDepth = depth * (0.48 + random() * 0.18);
-            addBox(faces, edges, x, z, tierWidth, tierDepth, tierHeight, height + 0.03);
+            colliders.push(addBox(faces, edges, x, z, tierWidth, tierDepth, tierHeight, height + 0.03));
             if (index % 10 === 0) {
               addLine(antennas, [x, height + tierHeight, z], [x, height + tierHeight + 5, z]);
               addLine(antennas, [x - 1.2, height + tierHeight + 3.3, z], [x + 1.2, height + tierHeight + 3.3, z]);
@@ -237,6 +243,7 @@
         cityFaces = createGeometry(faces);
         cityEdges = createGeometry(edges);
         antennaLines = createGeometry(antennas);
+        buildingColliders = colliders;
         document.getElementById("building-count").textContent = String(buildings.length);
       }
 
@@ -353,6 +360,79 @@
         ];
       }
 
+      function distanceToInterval(value, min, max) {
+        if (value < min) return min - value;
+        if (value > max) return value - max;
+        return 0;
+      }
+
+      function moveCameraAlongAxis(axis, distance) {
+        if (distance === 0) return;
+
+        const start = camera[axis];
+        const target = start + distance;
+        const radiusSquared = cameraRadius * cameraRadius;
+        let safeFraction = 1;
+
+        buildingColliders.forEach(collider => {
+          let perpendicularDistanceSquared;
+          let min;
+          let max;
+
+          if (axis === "x") {
+            const dy = distanceToInterval(camera.y, collider.minY, collider.maxY);
+            const dz = distanceToInterval(camera.z, collider.minZ, collider.maxZ);
+            perpendicularDistanceSquared = dy * dy + dz * dz;
+            min = collider.minX;
+            max = collider.maxX;
+          } else if (axis === "y") {
+            const dx = distanceToInterval(camera.x, collider.minX, collider.maxX);
+            const dz = distanceToInterval(camera.z, collider.minZ, collider.maxZ);
+            perpendicularDistanceSquared = dx * dx + dz * dz;
+            min = collider.minY;
+            max = collider.maxY;
+          } else {
+            const dx = distanceToInterval(camera.x, collider.minX, collider.maxX);
+            const dy = distanceToInterval(camera.y, collider.minY, collider.maxY);
+            perpendicularDistanceSquared = dx * dx + dy * dy;
+            min = collider.minZ;
+            max = collider.maxZ;
+          }
+
+          if (perpendicularDistanceSquared >= radiusSquared) return;
+          const padding = Math.sqrt(radiusSquared - perpendicularDistanceSquared);
+          const collisionMin = min - padding;
+          const collisionMax = max + padding;
+          let collisionFraction = 1;
+
+          if (distance > 0 && start <= collisionMin && target > collisionMin) {
+            collisionFraction = (collisionMin - start) / distance;
+          } else if (distance < 0 && start >= collisionMax && target < collisionMax) {
+            collisionFraction = (collisionMax - start) / distance;
+          }
+
+          if (collisionFraction < safeFraction) {
+            safeFraction = Math.max(0, collisionFraction - 0.000001);
+          }
+        });
+
+        camera[axis] = start + distance * safeFraction;
+      }
+
+      function moveCamera(displacementX, displacementY, displacementZ) {
+        const distance = Math.hypot(displacementX, displacementY, displacementZ);
+        const steps = Math.max(1, Math.ceil(distance / maxCollisionStep));
+        const stepX = displacementX / steps;
+        const stepY = displacementY / steps;
+        const stepZ = displacementZ / steps;
+
+        for (let i = 0; i < steps; i += 1) {
+          moveCameraAlongAxis("x", stepX);
+          moveCameraAlongAxis("y", stepY);
+          moveCameraAlongAxis("z", stepZ);
+        }
+      }
+
       function updateCamera(deltaTime) {
         const mode = speedModes[speedIndex];
         const turnStep = mode.turn * Math.PI / 180 * deltaTime;
@@ -376,9 +456,11 @@
           moveForward /= magnitude;
           moveRight /= magnitude;
         }
-        camera.x += (forward[0] * moveForward + rightX * moveRight) * moveStep;
-        camera.y += forward[1] * moveForward * moveStep;
-        camera.z += (forward[2] * moveForward + rightZ * moveRight) * moveStep;
+        moveCamera(
+          (forward[0] * moveForward + rightX * moveRight) * moveStep,
+          forward[1] * moveForward * moveStep,
+          (forward[2] * moveForward + rightZ * moveRight) * moveStep
+        );
       }
 
       function drawGeometry(geometry, primitive, color) {
