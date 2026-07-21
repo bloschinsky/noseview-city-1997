@@ -30,6 +30,8 @@
           <div class="screen-shell">
             <div class="canvas-wrap">
               <canvas id="gl-canvas" width="640" height="480" aria-label="Інтерактивна тривимірна карта міста"></canvas>
+              <canvas id="analog-glow-canvas" class="analog-glow" width="640" height="480" aria-hidden="true"></canvas>
+              <div class="analog-beam" aria-hidden="true"></div>
               <div class="hud" aria-hidden="true">
                 <div class="hud-name">NOSEVIEW</div>
                 <div class="hud-alt" id="hud-alt">ALT. 10.00</div>
@@ -91,6 +93,7 @@
             <div class="utility-buttons">
               <button id="reset-button">RESET POSITION</button>
               <button id="speed-button">SPEED: NORMAL</button>
+              <button id="analog-button" class="wide" aria-pressed="false">ANALOG VISION: OFF</button>
               <button id="regen-button" class="wide">GENERATE NEW CITY</button>
             </div>
 

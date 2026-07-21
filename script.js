@@ -2,6 +2,10 @@
 
     (function () {
       const canvas = document.getElementById("gl-canvas");
+      const canvasWrap = document.querySelector(".canvas-wrap");
+      const glowCanvas = document.getElementById("analog-glow-canvas");
+      const glowContext = glowCanvas.getContext("2d");
+      const analogButton = document.getElementById("analog-button");
       const errorBox = document.getElementById("webgl-error");
       const gl = canvas.getContext("webgl", {
         antialias: false,
@@ -343,8 +347,22 @@
         document.getElementById("speed").textContent = String(mode.move);
       }
 
+      let analogVisionEnabled = false;
+
+      function setAnalogVision(enabled) {
+        analogVisionEnabled = enabled;
+        canvasWrap.classList.toggle("analog-vision", enabled);
+        analogButton.classList.toggle("is-active", enabled);
+        analogButton.setAttribute("aria-pressed", String(enabled));
+        analogButton.textContent = `ANALOG VISION: ${enabled ? "ON" : "OFF"}`;
+        if (!enabled && glowContext) {
+          glowContext.clearRect(0, 0, glowCanvas.width, glowCanvas.height);
+        }
+      }
+
       document.getElementById("reset-button").addEventListener("click", resetCamera);
       document.getElementById("speed-button").addEventListener("click", cycleSpeed);
+      analogButton.addEventListener("click", () => setAnalogVision(!analogVisionEnabled));
       document.getElementById("regen-button").addEventListener("click", () => {
         currentSeed = (Date.now() ^ Math.floor(Math.random() * 0xffffffff)) >>> 0;
         buildCity(currentSeed);
@@ -547,7 +565,16 @@
 
         const flicker = 0.92 + Math.sin(time * 0.009) * 0.055 + Math.sin(time * 0.037) * 0.02;
         drawGeometry(cityEdges, gl.LINES, [0.0, flicker, 0.34 * flicker, 1]);
-        drawGeometry(antennaLines, gl.LINES, [0.0, 0.78, 1.0, 1]);
+        drawGeometry(
+          antennaLines,
+          gl.LINES,
+          analogVisionEnabled ? [0.0, 0.92, 0.4, 1] : [0.0, 0.78, 1.0, 1]
+        );
+
+        if (analogVisionEnabled && glowContext) {
+          glowContext.clearRect(0, 0, glowCanvas.width, glowCanvas.height);
+          glowContext.drawImage(canvas, 0, 0, glowCanvas.width, glowCanvas.height);
+        }
 
         updateUi(time, deltaTime);
         requestAnimationFrame(render);
