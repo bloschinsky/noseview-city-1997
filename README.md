@@ -18,6 +18,7 @@ A retro-futuristic navigation terminal for exploring a procedurally generated 3D
 - Three speed modes and procedural city regeneration
 - HUD with position, altitude, heading, pitch, and FPS data
 - Optional `ANALOG VISION` with scanlines, a sweeping beam, glow, and signal noise
+- Optional procedurally synthesized AdLib-style background music
 - Responsive keyboard and on-screen controls
 
 ## Controls

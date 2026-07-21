@@ -12,6 +12,8 @@
         : null;
       const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
       const analogButton = document.getElementById("analog-button");
+      const soundButton = document.getElementById("sound-button");
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
       const errorBox = document.getElementById("webgl-error");
       const gl = canvas.getContext("webgl", {
         antialias: false,
@@ -420,6 +422,249 @@
           canvasWrap.style.removeProperty("--analog-noise-opacity");
         }
       }
+
+      const musicTempo = 108;
+      const musicStepDuration = 60 / musicTempo / 4;
+      const bassPattern = [
+        40, null, null, null, 40, null, null, null,
+        43, null, null, null, 38, null, null, null,
+        40, null, null, null, 47, null, null, null,
+        43, null, null, null, 38, null, null, null
+      ];
+      const leadPattern = [
+        null, null, 64, null, null, null, 67, null,
+        null, 71, null, null, 69, null, 67, null,
+        null, null, 64, null, 67, null, 71, null,
+        74, null, 71, null, 69, null, 67, null
+      ];
+      const arpeggioRoots = [52, 55, 50, 52];
+      const arpeggioOffsets = [0, 7, 12, 7];
+
+      let audioContext = null;
+      let musicMaster = null;
+      let musicCompressor = null;
+      let percussionNoise = null;
+      let musicScheduler = null;
+      let nextMusicStepTime = 0;
+      let musicStep = 0;
+      let soundEnabled = false;
+      const scheduledSources = new Set();
+
+      function midiToFrequency(note) {
+        return 440 * Math.pow(2, (note - 69) / 12);
+      }
+
+      function trackSource(source) {
+        scheduledSources.add(source);
+        source.addEventListener("ended", () => scheduledSources.delete(source), { once: true });
+      }
+
+      function initializeAudio() {
+        if (audioContext || !AudioContextClass) return;
+
+        audioContext = new AudioContextClass();
+        musicMaster = audioContext.createGain();
+        musicMaster.gain.value = 0;
+        musicCompressor = audioContext.createDynamicsCompressor();
+        musicCompressor.threshold.value = -18;
+        musicCompressor.knee.value = 16;
+        musicCompressor.ratio.value = 4;
+        musicCompressor.attack.value = 0.003;
+        musicCompressor.release.value = 0.25;
+        musicMaster.connect(musicCompressor);
+        musicCompressor.connect(audioContext.destination);
+
+        percussionNoise = audioContext.createBuffer(1, Math.floor(audioContext.sampleRate * 0.08), audioContext.sampleRate);
+        const noiseData = percussionNoise.getChannelData(0);
+        for (let i = 0; i < noiseData.length; i += 1) {
+          noiseData[i] = Math.random() * 2 - 1;
+        }
+      }
+
+      function scheduleTone(frequency, time, duration, volume, type) {
+        const oscillator = audioContext.createOscillator();
+        const envelope = audioContext.createGain();
+        oscillator.type = type;
+        oscillator.frequency.setValueAtTime(frequency, time);
+        envelope.gain.setValueAtTime(0.0001, time);
+        envelope.gain.exponentialRampToValueAtTime(volume, time + 0.012);
+        envelope.gain.exponentialRampToValueAtTime(0.0001, time + duration);
+        oscillator.connect(envelope);
+        envelope.connect(musicMaster);
+        trackSource(oscillator);
+        oscillator.start(time);
+        oscillator.stop(time + duration + 0.02);
+      }
+
+      function scheduleFmLead(note, time) {
+        const frequency = midiToFrequency(note);
+        const carrier = audioContext.createOscillator();
+        const modulator = audioContext.createOscillator();
+        const modulation = audioContext.createGain();
+        const envelope = audioContext.createGain();
+
+        carrier.type = "sine";
+        carrier.frequency.setValueAtTime(frequency, time);
+        modulator.type = "sine";
+        modulator.frequency.setValueAtTime(frequency * 2, time);
+        modulation.gain.setValueAtTime(frequency * 0.32, time);
+        envelope.gain.setValueAtTime(0.0001, time);
+        envelope.gain.exponentialRampToValueAtTime(0.075, time + 0.015);
+        envelope.gain.exponentialRampToValueAtTime(0.0001, time + musicStepDuration * 2.7);
+
+        modulator.connect(modulation);
+        modulation.connect(carrier.frequency);
+        carrier.connect(envelope);
+        envelope.connect(musicMaster);
+        trackSource(carrier);
+        trackSource(modulator);
+        carrier.start(time);
+        modulator.start(time);
+        carrier.stop(time + musicStepDuration * 2.8);
+        modulator.stop(time + musicStepDuration * 2.8);
+      }
+
+      function scheduleKick(time) {
+        const oscillator = audioContext.createOscillator();
+        const envelope = audioContext.createGain();
+        oscillator.type = "sine";
+        oscillator.frequency.setValueAtTime(95, time);
+        oscillator.frequency.exponentialRampToValueAtTime(42, time + 0.12);
+        envelope.gain.setValueAtTime(0.13, time);
+        envelope.gain.exponentialRampToValueAtTime(0.0001, time + 0.13);
+        oscillator.connect(envelope);
+        envelope.connect(musicMaster);
+        trackSource(oscillator);
+        oscillator.start(time);
+        oscillator.stop(time + 0.14);
+      }
+
+      function scheduleHat(time) {
+        const source = audioContext.createBufferSource();
+        const filter = audioContext.createBiquadFilter();
+        const envelope = audioContext.createGain();
+        source.buffer = percussionNoise;
+        filter.type = "highpass";
+        filter.frequency.setValueAtTime(4200, time);
+        envelope.gain.setValueAtTime(0.025, time);
+        envelope.gain.exponentialRampToValueAtTime(0.0001, time + 0.045);
+        source.connect(filter);
+        filter.connect(envelope);
+        envelope.connect(musicMaster);
+        trackSource(source);
+        source.start(time);
+        source.stop(time + 0.05);
+      }
+
+      function scheduleMusicStep(step, time) {
+        const bassNote = bassPattern[step];
+        const leadNote = leadPattern[step];
+        if (bassNote !== null) {
+          scheduleTone(midiToFrequency(bassNote), time, musicStepDuration * 3.6, 0.1, "square");
+        }
+        if (leadNote !== null) scheduleFmLead(leadNote, time);
+        if (step % 2 === 0) {
+          const root = arpeggioRoots[Math.floor(step / 8)];
+          const offset = arpeggioOffsets[(step / 2) % arpeggioOffsets.length];
+          scheduleTone(midiToFrequency(root + offset), time, musicStepDuration * 0.8, 0.026, "triangle");
+        }
+        if (step % 8 === 0) scheduleKick(time);
+        if (step % 2 === 1) scheduleHat(time);
+      }
+
+      function runMusicScheduler() {
+        if (!soundEnabled || !audioContext || audioContext.state !== "running") return;
+        while (nextMusicStepTime < audioContext.currentTime + 0.1) {
+          scheduleMusicStep(musicStep, nextMusicStepTime);
+          nextMusicStepTime += musicStepDuration;
+          musicStep = (musicStep + 1) % bassPattern.length;
+        }
+      }
+
+      function startMusicScheduler() {
+        if (musicScheduler !== null) return;
+        nextMusicStepTime = audioContext.currentTime + 0.05;
+        runMusicScheduler();
+        musicScheduler = window.setInterval(runMusicScheduler, 25);
+      }
+
+      function stopMusicScheduler() {
+        if (musicScheduler === null) return;
+        window.clearInterval(musicScheduler);
+        musicScheduler = null;
+      }
+
+      function stopSources(sources, delay) {
+        window.setTimeout(() => {
+          sources.forEach(source => {
+            try {
+              source.stop();
+            } catch (error) {
+              // The source may already have finished naturally.
+            }
+          });
+        }, delay);
+      }
+
+      function updateSoundButton() {
+        soundButton.classList.toggle("is-active", soundEnabled);
+        soundButton.setAttribute("aria-pressed", String(soundEnabled));
+        soundButton.textContent = `SOUND: ${soundEnabled ? "ON" : "OFF"}`;
+      }
+
+      async function enableSound() {
+        try {
+          initializeAudio();
+          await audioContext.resume();
+          soundEnabled = true;
+          updateSoundButton();
+          const now = audioContext.currentTime;
+          musicMaster.gain.cancelScheduledValues(now);
+          musicMaster.gain.setValueAtTime(0, now);
+          musicMaster.gain.linearRampToValueAtTime(0.08, now + 0.08);
+          startMusicScheduler();
+        } catch (error) {
+          soundEnabled = false;
+          soundButton.disabled = true;
+          soundButton.textContent = "SOUND: N/A";
+          soundButton.setAttribute("aria-pressed", "false");
+        }
+      }
+
+      function disableSound() {
+        soundEnabled = false;
+        updateSoundButton();
+        stopMusicScheduler();
+        if (!audioContext || !musicMaster) return;
+        const now = audioContext.currentTime;
+        musicMaster.gain.cancelScheduledValues(now);
+        musicMaster.gain.setValueAtTime(musicMaster.gain.value, now);
+        musicMaster.gain.linearRampToValueAtTime(0, now + 0.06);
+        stopSources(Array.from(scheduledSources), 80);
+      }
+
+      if (AudioContextClass) {
+        soundButton.addEventListener("click", () => {
+          if (soundEnabled) disableSound();
+          else enableSound();
+        });
+      } else {
+        soundButton.disabled = true;
+        soundButton.textContent = "SOUND: N/A";
+      }
+
+      document.addEventListener("visibilitychange", () => {
+        if (!audioContext || !soundEnabled) return;
+        if (document.hidden) {
+          stopMusicScheduler();
+          stopSources(Array.from(scheduledSources), 0);
+          audioContext.suspend();
+        } else {
+          audioContext.resume().then(() => {
+            if (soundEnabled) startMusicScheduler();
+          }).catch(disableSound);
+        }
+      });
 
       document.getElementById("reset-button").addEventListener("click", resetCamera);
       document.getElementById("speed-button").addEventListener("click", cycleSpeed);

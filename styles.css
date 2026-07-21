@@ -333,7 +333,8 @@
     .utility-buttons button { min-height: 45px; font-size: 11px; }
     .utility-buttons .wide { grid-column: 1 / -1; }
 
-    #analog-button.is-active {
+    #analog-button.is-active,
+    #sound-button.is-active {
       color: #00ff66;
       background: #001b0a;
       text-shadow: 0 0 5px #00aa44;
