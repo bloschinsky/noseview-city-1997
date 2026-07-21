@@ -488,18 +488,56 @@
       .main-layout > tbody,
       .main-layout > tbody > tr,
       .main-layout > tbody > tr > td { display: block; width: 100%; }
+      .main-layout { table-layout: fixed; }
       .controls-cell { margin-top: 6px; }
-      .controls-cell-inner { max-width: 360px; margin: 0 auto; }
+      .controls-cell-inner {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+        max-width: 660px;
+        margin: 0 auto;
+      }
+      .control-panel { min-width: 0; margin-bottom: 0; }
+      .dpad {
+        width: 100%;
+        grid-template-columns: repeat(3, minmax(0, 78px));
+      }
+      .utility-buttons,
+      .help { grid-column: 1 / -1; }
+      .help { margin-top: 0; }
       .logo { letter-spacing: -2px; }
     }
 
     @media (max-width: 430px) {
-      .dpad {
-        grid-template-columns: repeat(3, 72px);
-        grid-template-rows: repeat(3, 54px);
+      .controls-cell { padding: 3px; }
+      .controls-cell-inner { gap: 4px; }
+      .control-panel {
+        padding: 3px;
+        border-width: 2px;
       }
-      .status-table { font-size: 9px; }
-      .status-table td { padding: 3px; }
+      .panel-label {
+        margin: -1px -1px 3px;
+        padding: 2px 1px;
+        font-size: 9px;
+        white-space: nowrap;
+      }
+      .dpad {
+        width: 100%;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        grid-template-rows: repeat(3, 46px);
+        gap: 2px;
+      }
+      .pad-button {
+        padding: 1px;
+        border-width: 3px;
+        font-size: 16px;
+      }
+      .pad-button small { margin-top: 2px; font-size: 7px; }
+      .pad-button:active,
+      .pad-button.is-active { padding: 3px 0 0 3px; }
+      .center { border-width: 3px; font-size: 7px; }
+      .status-table { table-layout: fixed; font-size: 9px; }
+      .status-table td { padding: 3px; white-space: normal; }
       .hud { font-size: 10px; }
     }
 
