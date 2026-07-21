@@ -423,22 +423,22 @@
         }
       }
 
-      const musicTempo = 108;
+      const musicTempo = 96;
       const musicStepDuration = 60 / musicTempo / 4;
       const bassPattern = [
-        40, null, null, null, 40, null, null, null,
-        43, null, null, null, 38, null, null, null,
-        40, null, null, null, 47, null, null, null,
-        43, null, null, null, 38, null, null, null
+        38, null, 38, null, 38, null, 36, null,
+        38, null, 41, null, 37, null, 34, null,
+        38, null, 38, null, 38, null, 36, null,
+        41, null, 37, null, 34, null, 37, null
       ];
       const leadPattern = [
-        null, null, 64, null, null, null, 67, null,
-        null, 71, null, null, 69, null, 67, null,
-        null, null, 64, null, 67, null, 71, null,
-        74, null, 71, null, 69, null, 67, null
+        null, null, null, 62, null, null, null, null,
+        65, null, null, null, 61, null, null, null,
+        null, null, 62, null, null, null, 58, null,
+        null, 61, null, null, 57, null, null, null
       ];
-      const arpeggioRoots = [52, 55, 50, 52];
-      const arpeggioOffsets = [0, 7, 12, 7];
+      const arpeggioRoots = [50, 48, 46, 49];
+      const arpeggioOffsets = [0, 3, 7, 12];
 
       let audioContext = null;
       let musicMaster = null;
@@ -496,6 +496,42 @@
         oscillator.stop(time + duration + 0.02);
       }
 
+      function scheduleBass(note, time) {
+        const frequency = midiToFrequency(note);
+        const pulse = audioContext.createOscillator();
+        const grit = audioContext.createOscillator();
+        const gritLevel = audioContext.createGain();
+        const filter = audioContext.createBiquadFilter();
+        const envelope = audioContext.createGain();
+        const duration = musicStepDuration * 1.75;
+
+        pulse.type = "square";
+        pulse.frequency.setValueAtTime(frequency, time);
+        grit.type = "sawtooth";
+        grit.frequency.setValueAtTime(frequency, time);
+        grit.detune.setValueAtTime(-7, time);
+        gritLevel.gain.setValueAtTime(0.28, time);
+        filter.type = "lowpass";
+        filter.Q.setValueAtTime(5.5, time);
+        filter.frequency.setValueAtTime(760, time);
+        filter.frequency.exponentialRampToValueAtTime(230, time + duration);
+        envelope.gain.setValueAtTime(0.0001, time);
+        envelope.gain.exponentialRampToValueAtTime(0.105, time + 0.008);
+        envelope.gain.exponentialRampToValueAtTime(0.0001, time + duration);
+
+        pulse.connect(filter);
+        grit.connect(gritLevel);
+        gritLevel.connect(filter);
+        filter.connect(envelope);
+        envelope.connect(musicMaster);
+        trackSource(pulse);
+        trackSource(grit);
+        pulse.start(time);
+        grit.start(time);
+        pulse.stop(time + duration + 0.02);
+        grit.stop(time + duration + 0.02);
+      }
+
       function scheduleFmLead(note, time) {
         const frequency = midiToFrequency(note);
         const carrier = audioContext.createOscillator();
@@ -506,11 +542,11 @@
         carrier.type = "sine";
         carrier.frequency.setValueAtTime(frequency, time);
         modulator.type = "sine";
-        modulator.frequency.setValueAtTime(frequency * 2, time);
-        modulation.gain.setValueAtTime(frequency * 0.32, time);
+        modulator.frequency.setValueAtTime(frequency * 1.5, time);
+        modulation.gain.setValueAtTime(frequency * 0.58, time);
         envelope.gain.setValueAtTime(0.0001, time);
-        envelope.gain.exponentialRampToValueAtTime(0.075, time + 0.015);
-        envelope.gain.exponentialRampToValueAtTime(0.0001, time + musicStepDuration * 2.7);
+        envelope.gain.exponentialRampToValueAtTime(0.055, time + 0.018);
+        envelope.gain.exponentialRampToValueAtTime(0.0001, time + musicStepDuration * 3.4);
 
         modulator.connect(modulation);
         modulation.connect(carrier.frequency);
@@ -520,23 +556,23 @@
         trackSource(modulator);
         carrier.start(time);
         modulator.start(time);
-        carrier.stop(time + musicStepDuration * 2.8);
-        modulator.stop(time + musicStepDuration * 2.8);
+        carrier.stop(time + musicStepDuration * 3.5);
+        modulator.stop(time + musicStepDuration * 3.5);
       }
 
       function scheduleKick(time) {
         const oscillator = audioContext.createOscillator();
         const envelope = audioContext.createGain();
         oscillator.type = "sine";
-        oscillator.frequency.setValueAtTime(95, time);
-        oscillator.frequency.exponentialRampToValueAtTime(42, time + 0.12);
-        envelope.gain.setValueAtTime(0.13, time);
-        envelope.gain.exponentialRampToValueAtTime(0.0001, time + 0.13);
+        oscillator.frequency.setValueAtTime(82, time);
+        oscillator.frequency.exponentialRampToValueAtTime(34, time + 0.17);
+        envelope.gain.setValueAtTime(0.17, time);
+        envelope.gain.exponentialRampToValueAtTime(0.0001, time + 0.18);
         oscillator.connect(envelope);
         envelope.connect(musicMaster);
         trackSource(oscillator);
         oscillator.start(time);
-        oscillator.stop(time + 0.14);
+        oscillator.stop(time + 0.19);
       }
 
       function scheduleHat(time) {
@@ -545,31 +581,29 @@
         const envelope = audioContext.createGain();
         source.buffer = percussionNoise;
         filter.type = "highpass";
-        filter.frequency.setValueAtTime(4200, time);
-        envelope.gain.setValueAtTime(0.025, time);
-        envelope.gain.exponentialRampToValueAtTime(0.0001, time + 0.045);
+        filter.frequency.setValueAtTime(3200, time);
+        envelope.gain.setValueAtTime(0.018, time);
+        envelope.gain.exponentialRampToValueAtTime(0.0001, time + 0.06);
         source.connect(filter);
         filter.connect(envelope);
         envelope.connect(musicMaster);
         trackSource(source);
         source.start(time);
-        source.stop(time + 0.05);
+        source.stop(time + 0.065);
       }
 
       function scheduleMusicStep(step, time) {
         const bassNote = bassPattern[step];
         const leadNote = leadPattern[step];
-        if (bassNote !== null) {
-          scheduleTone(midiToFrequency(bassNote), time, musicStepDuration * 3.6, 0.1, "square");
-        }
+        if (bassNote !== null) scheduleBass(bassNote, time);
         if (leadNote !== null) scheduleFmLead(leadNote, time);
         if (step % 2 === 0) {
           const root = arpeggioRoots[Math.floor(step / 8)];
           const offset = arpeggioOffsets[(step / 2) % arpeggioOffsets.length];
-          scheduleTone(midiToFrequency(root + offset), time, musicStepDuration * 0.8, 0.026, "triangle");
+          scheduleTone(midiToFrequency(root + offset), time, musicStepDuration * 1.1, 0.018, "triangle");
         }
-        if (step % 8 === 0) scheduleKick(time);
-        if (step % 2 === 1) scheduleHat(time);
+        if (step % 4 === 0) scheduleKick(time);
+        if (step % 4 === 2) scheduleHat(time);
       }
 
       function runMusicScheduler() {
