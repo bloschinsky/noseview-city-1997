@@ -542,7 +542,7 @@
 
         gl.enable(gl.POLYGON_OFFSET_FILL);
         gl.polygonOffset(1, 1);
-        drawGeometry(cityFaces, gl.TRIANGLES, [0.001, 0.006, 0.003, 1]);
+        drawGeometry(cityFaces, gl.TRIANGLES, [0.018, 0.085, 0.038, 1]);
         gl.disable(gl.POLYGON_OFFSET_FILL);
 
         const flicker = 0.92 + Math.sin(time * 0.009) * 0.055 + Math.sin(time * 0.037) * 0.02;
