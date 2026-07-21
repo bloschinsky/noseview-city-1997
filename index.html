@@ -96,6 +96,7 @@
               <button id="speed-button">SPEED: NORMAL</button>
               <button id="analog-button" class="wide" aria-pressed="false">ANALOG VISION: OFF</button>
               <button id="sound-button" class="wide" aria-pressed="false">SOUND: OFF</button>
+              <button id="settings-button" class="wide">SETTINGS</button>
               <button id="regen-button" class="wide">GENERATE NEW CITY</button>
             </div>
 
@@ -114,6 +115,22 @@
       <b>NOSEVIEW HOMEPAGE</b> — optimized for 640×480, 256 colors and an irresponsible amount of RAM.<br>
       <span class="counter">00001997</span> visitors since Tuesday. No cookies. No tracking. No common sense.
     </footer>
+  </div>
+
+  <div id="settings-modal" class="settings-modal" hidden>
+    <div class="settings-window" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <div class="settings-titlebar">
+        <span id="settings-title">SYSTEM SETTINGS</span>
+        <button id="settings-close" type="button" aria-label="Close settings">X</button>
+      </div>
+      <div class="settings-content">
+        <div class="settings-group">
+          <div class="settings-group-title">DISPLAY EFFECTS</div>
+          <button id="digital-rain-button" type="button" aria-pressed="false">DIGITAL RAIN: OFF</button>
+          <p>Render a falling green terminal code signal behind the city.</p>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="script.js"></script>

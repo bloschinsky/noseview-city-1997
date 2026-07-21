@@ -3,6 +3,10 @@
     (function () {
       const canvas = document.getElementById("gl-canvas");
       const canvasWrap = document.querySelector(".canvas-wrap");
+      const rainCanvas = document.createElement("canvas");
+      rainCanvas.width = 512;
+      rainCanvas.height = 512;
+      const rainContext = rainCanvas.getContext("2d");
       const glowCanvas = document.getElementById("analog-glow-canvas");
       const glowContext = glowCanvas.getContext("2d");
       const noiseCanvas = document.getElementById("analog-noise-canvas");
@@ -13,6 +17,10 @@
       const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
       const analogButton = document.getElementById("analog-button");
       const soundButton = document.getElementById("sound-button");
+      const settingsButton = document.getElementById("settings-button");
+      const settingsModal = document.getElementById("settings-modal");
+      const settingsClose = document.getElementById("settings-close");
+      const digitalRainButton = document.getElementById("digital-rain-button");
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
       const errorBox = document.getElementById("webgl-error");
       const gl = canvas.getContext("webgl", {
@@ -45,11 +53,36 @@
         uniform vec4 uColor;
         uniform float uFogNear;
         uniform float uFogFar;
+        uniform float uSkyEnabled;
         varying float vDistance;
 
         void main() {
           float fog = smoothstep(uFogNear, uFogFar, vDistance);
-          gl_FragColor = vec4(mix(uColor.rgb, vec3(0.0), fog), uColor.a * (1.0 - fog * 0.45));
+          float fogAlpha = mix(1.0 - fog * 0.45, 1.0, uSkyEnabled);
+          gl_FragColor = vec4(mix(uColor.rgb, vec3(0.0), fog), uColor.a * fogAlpha);
+        }
+      `;
+
+      const skyVertexSource = `
+        attribute vec3 aPosition;
+        attribute vec2 aTexCoord;
+        uniform mat4 uProjection;
+        uniform mat4 uView;
+        varying vec2 vTexCoord;
+
+        void main() {
+          vTexCoord = aTexCoord;
+          gl_Position = uProjection * uView * vec4(aPosition, 1.0);
+        }
+      `;
+
+      const skyFragmentSource = `
+        precision mediump float;
+        uniform sampler2D uTexture;
+        varying vec2 vTexCoord;
+
+        void main() {
+          gl_FragColor = texture2D(uTexture, vTexCoord);
         }
       `;
 
@@ -74,9 +107,22 @@
         return program;
       }
 
+      function makeSkyProgram() {
+        const skyProgram = gl.createProgram();
+        gl.attachShader(skyProgram, compileShader(gl.VERTEX_SHADER, skyVertexSource));
+        gl.attachShader(skyProgram, compileShader(gl.FRAGMENT_SHADER, skyFragmentSource));
+        gl.linkProgram(skyProgram);
+        if (!gl.getProgramParameter(skyProgram, gl.LINK_STATUS)) {
+          throw new Error(gl.getProgramInfoLog(skyProgram) || "Sky program linking failed");
+        }
+        return skyProgram;
+      }
+
       let program;
+      let skyProgram;
       try {
         program = makeProgram();
+        skyProgram = makeSkyProgram();
       } catch (error) {
         errorBox.style.display = "block";
         errorBox.innerHTML = "*** SYSTEM FAILURE ***<br><br>" + error.message;
@@ -89,7 +135,16 @@
         view: gl.getUniformLocation(program, "uView"),
         color: gl.getUniformLocation(program, "uColor"),
         fogNear: gl.getUniformLocation(program, "uFogNear"),
-        fogFar: gl.getUniformLocation(program, "uFogFar")
+        fogFar: gl.getUniformLocation(program, "uFogFar"),
+        skyEnabled: gl.getUniformLocation(program, "uSkyEnabled")
+      };
+
+      const skyLocations = {
+        position: gl.getAttribLocation(skyProgram, "aPosition"),
+        texCoord: gl.getAttribLocation(skyProgram, "aTexCoord"),
+        projection: gl.getUniformLocation(skyProgram, "uProjection"),
+        view: gl.getUniformLocation(skyProgram, "uView"),
+        texture: gl.getUniformLocation(skyProgram, "uTexture")
       };
 
       function perspective(fovRadians, aspect, near, far) {
@@ -130,6 +185,59 @@
           x[2], y[2], z[2], 0,
           -dot(x, eye), -dot(y, eye), -dot(z, eye), 1
         ]);
+      }
+
+      function createSkyGeometry(radius, latitudeSegments, longitudeSegments) {
+        const data = [];
+
+        function makeVertex(latitude, longitude) {
+          const v = latitude / latitudeSegments;
+          const u = longitude / longitudeSegments;
+          const phi = v * Math.PI;
+          const theta = u * Math.PI * 2;
+          const sinPhi = Math.sin(phi);
+          return [
+            radius * sinPhi * Math.cos(theta),
+            radius * Math.cos(phi),
+            radius * sinPhi * Math.sin(theta),
+            u,
+            1 - v
+          ];
+        }
+
+        function pushVertex(vertex) {
+          data.push(vertex[0], vertex[1], vertex[2], vertex[3], vertex[4]);
+        }
+
+        for (let latitude = 0; latitude < latitudeSegments; latitude += 1) {
+          for (let longitude = 0; longitude < longitudeSegments; longitude += 1) {
+            const v00 = makeVertex(latitude, longitude);
+            const v10 = makeVertex(latitude + 1, longitude);
+            const v11 = makeVertex(latitude + 1, longitude + 1);
+            const v01 = makeVertex(latitude, longitude + 1);
+            pushVertex(v00); pushVertex(v10); pushVertex(v11);
+            pushVertex(v00); pushVertex(v11); pushVertex(v01);
+          }
+        }
+
+        const buffer = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
+        return { buffer, count: data.length / 5 };
+      }
+
+      function createSkyTexture() {
+        rainContext.fillStyle = "#000000";
+        rainContext.fillRect(0, 0, rainCanvas.width, rainCanvas.height);
+        const texture = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, rainCanvas);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        return texture;
       }
 
       function createGeometry(data) {
@@ -329,6 +437,7 @@
       });
 
       window.addEventListener("keydown", event => {
+        if (!settingsModal.hidden) return;
         if (keyMap[event.code]) {
           event.preventDefault();
           setControl(keyMap[event.code], true);
@@ -422,6 +531,166 @@
           canvasWrap.style.removeProperty("--analog-noise-opacity");
         }
       }
+
+      const rainGlyphs = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ<>[]{}\\/|:;*+-=";
+      const rainColumnWidth = 7;
+      const rainGlyphFontSize = 12;
+      const rainGlyphHeight = 15;
+      const rainGlyphScaleX = 0.58;
+      const rainGlyphScaleY = 1.25;
+      let digitalRainEnabled = false;
+      let rainColumns = [];
+      let lastRainFrame = 0;
+      let staticRainDrawn = false;
+      let previousSettingsFocus = null;
+
+      function makeRainColumn(index, initial, time) {
+        return {
+          x: index * rainColumnWidth + rainColumnWidth / 2,
+          y: initial ? Math.random() * rainCanvas.height : -Math.random() * rainCanvas.height * 0.6,
+          speed: 65 + Math.random() * 105,
+          baseTrail: 18 + Math.floor(Math.random() * 13),
+          lengthScale: 0.8 + Math.random() * 0.4,
+          lengthTarget: 0.8 + Math.random() * 0.4,
+          nextLengthChange: time + 900 + Math.random() * 1300,
+          active: Math.random() > 0.06
+        };
+      }
+
+      function initializeDigitalRain() {
+        const time = performance.now();
+        const columnCount = Math.floor(rainCanvas.width / rainColumnWidth);
+        rainColumns = Array.from({ length: columnCount }, (_, index) => makeRainColumn(index, true, time));
+        lastRainFrame = 0;
+        staticRainDrawn = false;
+      }
+
+      function randomRainGlyph() {
+        return rainGlyphs[Math.floor(Math.random() * rainGlyphs.length)];
+      }
+
+      function drawDigitalRain() {
+        if (!rainContext) return;
+        rainContext.fillStyle = "#000000";
+        rainContext.fillRect(0, 0, rainCanvas.width, rainCanvas.height);
+        rainContext.setTransform(rainGlyphScaleX, 0, 0, rainGlyphScaleY, 0, 0);
+        rainContext.font = `bold ${rainGlyphFontSize}px "Courier New", monospace`;
+        rainContext.textAlign = "center";
+        rainContext.textBaseline = "top";
+
+        rainColumns.forEach(column => {
+          if (!column.active) return;
+          const trailLength = Math.max(1, Math.round(column.baseTrail * column.lengthScale));
+          for (let trailIndex = trailLength - 1; trailIndex >= 0; trailIndex -= 1) {
+            const y = column.y - trailIndex * rainGlyphHeight;
+            if (y < -rainGlyphHeight || y > rainCanvas.height) continue;
+            if (trailIndex === 0) {
+              rainContext.fillStyle = "#c8ffda";
+              rainContext.shadowColor = "#00ff66";
+              rainContext.shadowBlur = 7;
+            } else {
+              const strength = Math.pow(1 - trailIndex / trailLength, 1.35);
+              rainContext.fillStyle = `rgba(20, 255, 95, ${0.08 + strength * 0.72})`;
+              rainContext.shadowBlur = 0;
+            }
+            rainContext.fillText(
+              randomRainGlyph(),
+              column.x / rainGlyphScaleX,
+              y / rainGlyphScaleY
+            );
+          }
+        });
+        rainContext.setTransform(1, 0, 0, 1, 0, 0);
+        rainContext.shadowBlur = 0;
+      }
+
+      function updateDigitalRain(time) {
+        if (!digitalRainEnabled || !rainContext) return;
+        if (reducedMotion.matches && staticRainDrawn) return;
+        if (!reducedMotion.matches && lastRainFrame !== 0 && time - lastRainFrame < 50) return;
+
+        const elapsed = lastRainFrame === 0 ? 0 : Math.min((time - lastRainFrame) / 1000, 0.1);
+        if (!reducedMotion.matches) {
+          rainColumns = rainColumns.map((column, index) => {
+            if (time >= column.nextLengthChange) {
+              column.lengthTarget = 0.8 + Math.random() * 0.4;
+              column.nextLengthChange = time + 900 + Math.random() * 1300;
+            }
+            const smoothing = 1 - Math.exp(-elapsed * 1.8);
+            column.lengthScale += (column.lengthTarget - column.lengthScale) * smoothing;
+            column.y += column.speed * elapsed;
+            const trailLength = column.baseTrail * column.lengthScale;
+            if (column.y - trailLength * rainGlyphHeight > rainCanvas.height) {
+              return makeRainColumn(index, false, time);
+            }
+            return column;
+          });
+        }
+        drawDigitalRain();
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, skyTexture);
+        gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, gl.RGBA, gl.UNSIGNED_BYTE, rainCanvas);
+        if (reducedMotion.matches) {
+          staticRainDrawn = true;
+        }
+        lastRainFrame = time;
+      }
+
+      function setDigitalRain(enabled) {
+        digitalRainEnabled = enabled;
+        digitalRainButton.classList.toggle("is-active", enabled);
+        digitalRainButton.setAttribute("aria-pressed", String(enabled));
+        digitalRainButton.textContent = `DIGITAL RAIN: ${enabled ? "ON" : "OFF"}`;
+        if (enabled) {
+          initializeDigitalRain();
+        }
+      }
+
+      function getSettingsFocusables() {
+        return Array.from(settingsModal.querySelectorAll("button:not(:disabled)"));
+      }
+
+      function openSettings() {
+        previousSettingsFocus = document.activeElement;
+        Object.keys(controls).forEach(action => setControl(action, false));
+        settingsModal.hidden = false;
+        settingsClose.focus();
+      }
+
+      function closeSettings() {
+        if (settingsModal.hidden) return;
+        settingsModal.hidden = true;
+        const focusTarget = previousSettingsFocus && typeof previousSettingsFocus.focus === "function"
+          ? previousSettingsFocus
+          : settingsButton;
+        focusTarget.focus();
+      }
+
+      settingsButton.addEventListener("click", openSettings);
+      settingsClose.addEventListener("click", closeSettings);
+      digitalRainButton.addEventListener("click", () => setDigitalRain(!digitalRainEnabled));
+      settingsModal.addEventListener("click", event => {
+        if (event.target === settingsModal) closeSettings();
+      });
+      settingsModal.addEventListener("keydown", event => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          event.stopPropagation();
+          closeSettings();
+          return;
+        }
+        if (event.key !== "Tab") return;
+        const focusables = getSettingsFocusables();
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      });
 
       const musicTempo = 96;
       const musicStepDuration = 60 / musicTempo / 4;
@@ -829,6 +1098,29 @@
         gl.drawArrays(primitive, 0, geometry.count);
       }
 
+      function drawSky(view) {
+        gl.disable(gl.DEPTH_TEST);
+        gl.disable(gl.BLEND);
+        gl.useProgram(skyProgram);
+        gl.bindBuffer(gl.ARRAY_BUFFER, skyGeometry.buffer);
+        gl.enableVertexAttribArray(skyLocations.position);
+        gl.enableVertexAttribArray(skyLocations.texCoord);
+        gl.vertexAttribPointer(skyLocations.position, 3, gl.FLOAT, false, 20, 0);
+        gl.vertexAttribPointer(skyLocations.texCoord, 2, gl.FLOAT, false, 20, 12);
+        gl.uniformMatrix4fv(skyLocations.view, false, view);
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, skyTexture);
+        gl.uniform1i(skyLocations.texture, 0);
+        gl.drawArrays(gl.TRIANGLES, 0, skyGeometry.count);
+        gl.disableVertexAttribArray(skyLocations.position);
+        gl.disableVertexAttribArray(skyLocations.texCoord);
+
+        gl.useProgram(program);
+        gl.enableVertexAttribArray(locations.position);
+        gl.enable(gl.DEPTH_TEST);
+        gl.enable(gl.BLEND);
+      }
+
       const ui = {
         x: document.getElementById("pos-x"),
         y: document.getElementById("pos-y"),
@@ -872,10 +1164,17 @@
       gl.clearColor(0, 0, 0, 1);
       gl.uniform1f(locations.fogNear, 54);
       gl.uniform1f(locations.fogFar, 155);
+      gl.uniform1f(locations.skyEnabled, 0);
       gl.lineWidth(1);
 
       const projection = perspective(60 * Math.PI / 180, canvas.width / canvas.height, 0.1, 190);
+      const skyGeometry = createSkyGeometry(150, 24, 48);
+      const skyTexture = createSkyTexture();
       gl.uniformMatrix4fv(locations.projection, false, projection);
+      gl.useProgram(skyProgram);
+      gl.uniformMatrix4fv(skyLocations.projection, false, projection);
+      gl.uniform1i(skyLocations.texture, 0);
+      gl.useProgram(program);
       buildCity(currentSeed);
 
       let previousTime = performance.now();
@@ -884,6 +1183,7 @@
         const deltaTime = Math.min((time - previousTime) / 1000, 0.05);
         previousTime = time;
         updateCamera(deltaTime);
+        updateDigitalRain(time);
 
         const forward = getForwardDirection();
         const eye = [camera.x, camera.y, camera.z];
@@ -892,6 +1192,11 @@
 
         gl.viewport(0, 0, canvas.width, canvas.height);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        if (digitalRainEnabled) {
+          const skyView = lookAt([0, 0, 0], forward, [0, 1, 0]);
+          drawSky(skyView);
+        }
+        gl.uniform1f(locations.skyEnabled, digitalRainEnabled ? 1 : 0);
         gl.uniformMatrix4fv(locations.view, false, view);
 
         drawGeometry(groundFaces, gl.TRIANGLES, [0.002, 0.008, 0.004, 1]);

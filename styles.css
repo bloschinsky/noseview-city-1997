@@ -334,10 +334,80 @@
     .utility-buttons .wide { grid-column: 1 / -1; }
 
     #analog-button.is-active,
-    #sound-button.is-active {
+    #sound-button.is-active,
+    #digital-rain-button.is-active {
       color: #00ff66;
       background: #001b0a;
       text-shadow: 0 0 5px #00aa44;
+    }
+
+    .settings-modal {
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      display: grid;
+      place-items: center;
+      padding: 15px;
+      background: rgba(0, 0, 25, 0.78);
+    }
+
+    .settings-modal[hidden] { display: none; }
+
+    .settings-window {
+      width: 390px;
+      max-width: 100%;
+      color: #000000;
+      background: #c0c0c0;
+      border: 6px outset #eeeeee;
+      box-shadow: 8px 8px 0 rgba(0, 0, 0, 0.65);
+    }
+
+    .settings-titlebar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 32px;
+      padding: 3px 4px 3px 8px;
+      color: #ffffff;
+      background: #000080;
+      font: bold 13px "Courier New", monospace;
+      letter-spacing: 1px;
+    }
+
+    .settings-titlebar button {
+      width: 28px;
+      min-height: 24px;
+      padding: 0;
+      border-width: 3px;
+      font-size: 12px;
+    }
+
+    .settings-content { padding: 10px; }
+
+    .settings-group {
+      padding: 8px;
+      border: 3px inset #eeeeee;
+      background: #b8b8b8;
+    }
+
+    .settings-group-title {
+      margin-bottom: 8px;
+      padding: 3px 5px;
+      color: #00ff66;
+      background: #000000;
+      font: bold 11px "Courier New", monospace;
+    }
+
+    .settings-group button {
+      width: 100%;
+      min-height: 42px;
+      font-size: 11px;
+    }
+
+    .settings-group p {
+      margin: 8px 2px 0;
+      font-size: 10px;
+      line-height: 1.4;
     }
 
     .help {
