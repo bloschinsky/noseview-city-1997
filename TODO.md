@@ -8,7 +8,7 @@ NOSEVIEW 1997 has three intentionally separate product lines:
 
 | Edition | Purpose | Technology | Status |
 | --- | --- | --- | --- |
-| **NOSEVIEW 1997** | Canonical game and live GitHub Pages version | Vanilla HTML, CSS, JavaScript, native ESM, WebGL 1 | Primary |
+| **NOSEVIEW 1997** | Canonical game and live GitHub Pages version | Vanilla HTML, CSS, ordered classic JavaScript files, WebGL 1 | Primary |
 | **NOSEVIEW 1997 — Vue Terminal** | Vue 3 learning experiment using the same engine concepts | Vue 3, Composition API, Vite, WebGL 1 | Future fork |
 | **NOSEVIEW 1997 — Trident Edition** | Museum-grade compatibility experiment | ES5 bundle, IE11-compatible CSS, WebGL 1 | Future fork |
 
@@ -25,9 +25,11 @@ The canonical edition must remain lightweight, dependency-free at runtime, stati
 7. Keep generated geometry, building metadata, and AABB colliders synchronized.
 8. Avoid new runtime dependencies in the canonical edition.
 9. Do not introduce Vue, TypeScript, Pinia, a router, or a build framework into the canonical edition.
-10. Mark a checkbox complete only after its acceptance criteria and the global Definition of Done are satisfied.
-11. Update this file when scope or implementation decisions change.
-12. Do not start the Vue or Trident editions until the canonical engine API is stable.
+10. The canonical edition must continue to run when `index.html` is opened directly through `file://`.
+11. Do not require a local server, package installation, bundler, build step, or generated bundle for canonical development.
+12. Mark a checkbox complete only after its acceptance criteria and the global Definition of Done are satisfied.
+13. Update this file when scope or implementation decisions change.
+14. Do not start the Vue or Trident editions until the canonical engine API is stable.
 
 ## Priority Legend
 
@@ -73,9 +75,11 @@ Goal: create a known-good reference before structural changes.
 
 ---
 
-## Milestone 1 — Extract a Framework-Agnostic ESM Engine `[P0]`
+## Milestone 1 — Split the Engine into Classic JavaScript Files `[P0]`
 
-Goal: split the monolithic script into maintainable native ES modules without changing the visible product.
+Goal: split the monolithic script into maintainable, framework-agnostic classic JavaScript files without changing the visible product or the direct-open local workflow.
+
+This milestone explicitly does **not** use native ESM. Do not add `import`, `export`, `<script type="module">`, dynamic module loading, a development server, a bundler, or a build pipeline to the canonical edition.
 
 ### 1.1 Define the engine boundary
 
@@ -89,7 +93,7 @@ Goal: split the monolithic script into maintainable native ES modules without ch
 Suggested public API:
 
 ```js
-const engine = createNoseviewEngine(canvas, {
+const engine = window.Noseview.createNoseviewEngine(canvas, {
   onTelemetry(snapshot) {},
   onMissionEvent(event) {},
   onError(error) {}
@@ -107,9 +111,17 @@ engine.setEffect("digitalRain", false);
 engine.setSoundEnabled(false);
 ```
 
-The exact names may change, but the engine must not depend on Vue or direct knowledge of the surrounding page layout.
+The exact names may change, but the engine must not depend on Vue or direct knowledge of the surrounding page layout. `window.Noseview` should be the only intentional application-level global.
 
-### 1.2 Extract modules
+### 1.2 Extract responsibilities into ordered classic scripts
+
+- [ ] Create a single `window.Noseview` namespace before loading subsystem files.
+- [ ] Wrap every file in an IIFE so private implementation details do not leak into the global scope.
+- [ ] Publish only deliberate subsystem APIs on `window.Noseview`.
+- [ ] Document the dependency and loading order in `index.html` and `AGENTS.md`.
+- [ ] Keep all script tags together at the end of `<body>`.
+- [ ] Use plain ordered `<script src="..."></script>` tags without `async`, `type="module"`, or dynamic injection.
+- [ ] Ensure every source file can load from a relative path under `file://`.
 
 - [ ] Move vector, matrix, projection, normalization, cross-product, and look-at helpers to `src/engine/math.js`.
 - [ ] Move seeded RNG and procedural city generation to `src/engine/city.js`.
@@ -121,12 +133,31 @@ The exact names may change, but the engine must not depend on Vue or direct know
 - [ ] Move Web Audio synthesis and scheduling to `src/audio/music.js`.
 - [ ] Move keyboard, pointer, focus, and settings bindings to `src/ui/controls.js`.
 - [ ] Keep `src/main.js` limited to application bootstrap and subsystem wiring.
-- [ ] Change the page entry point to `<script type="module" src="src/main.js"></script>`.
+- [ ] Load `src/main.js` last so every required subsystem is already registered.
+
+Suggested file wrapper:
+
+```js
+(function (root) {
+  "use strict";
+
+  const Noseview = root.Noseview = root.Noseview || {};
+
+  function privateImplementation() {
+    // File-private logic.
+  }
+
+  Noseview.math = {
+    example: privateImplementation
+  };
+}(window));
+```
 
 Suggested structure:
 
 ```text
 src/
+├── namespace.js
 ├── main.js
 ├── engine/
 │   ├── engine.js
@@ -144,7 +175,24 @@ src/
     └── hud.js
 ```
 
-Do not split tiny functions into separate files solely to increase the module count.
+Suggested script loading order:
+
+```html
+<script src="src/namespace.js"></script>
+<script src="src/engine/math.js"></script>
+<script src="src/engine/city.js"></script>
+<script src="src/engine/flight.js"></script>
+<script src="src/engine/renderer.js"></script>
+<script src="src/effects/analog-vision.js"></script>
+<script src="src/effects/digital-rain.js"></script>
+<script src="src/audio/music.js"></script>
+<script src="src/ui/hud.js"></script>
+<script src="src/ui/controls.js"></script>
+<script src="src/engine/engine.js"></script>
+<script src="src/main.js"></script>
+```
+
+The final order may change when real dependencies are extracted. It must remain explicit and deterministic. Do not split tiny functions into separate files solely to increase the file count.
 
 ### 1.3 Add low-cost automated tests
 
@@ -155,13 +203,17 @@ Do not split tiny functions into separate files solely to increase the module co
 - [ ] Test camera pitch clamping.
 - [ ] Test diagonal movement normalization.
 - [ ] Test heading normalization and HUD formatting.
-- [ ] Use Node's built-in test runner unless a different tool is explicitly approved.
+- [ ] Add a dependency-free `tests.html` harness that loads the required classic scripts in order and can run through `file://`.
+- [ ] Optionally mirror pure-logic tests in Node, but do not make Node a requirement for opening or playing the canonical edition.
 - [ ] Keep test-only tooling out of the production payload.
 
-### 1.4 Update local development instructions
+### 1.4 Preserve the direct-open development workflow
 
-- [ ] Document that native ESM requires an HTTP server for local development.
-- [ ] Add one simple server command to `README.md`.
+- [ ] Keep `index.html` directly runnable after downloading or cloning the repository.
+- [ ] Document `Open index.html in a browser` as the primary local run instruction.
+- [ ] Verify the project from a directory whose path contains spaces.
+- [ ] Verify that no browser request depends on HTTP-only behavior or absolute server paths.
+- [ ] Keep all canonical runtime assets local to the repository.
 - [ ] Preserve GitHub Pages deployment without a runtime build step.
 - [ ] Update `AGENTS.md` validation commands after `script.js` is removed.
 
@@ -172,7 +224,9 @@ Do not split tiny functions into separate files solely to increase the module co
 - The UI does not directly mutate camera, renderer, or audio internals.
 - Pure generation, math, formatting, and collision logic can run in tests without a browser.
 - Every event listener, timer, audio source, and animation loop has a cleanup path.
-- GitHub Pages serves the native modules with correct MIME types.
+- A downloaded or cloned copy works by opening `index.html` directly through `file://`.
+- GitHub Pages uses the same source files as the direct-open local version.
+- The canonical edition has no bundler, generated bundle, package-install requirement, or mandatory development server.
 
 ---
 
@@ -360,7 +414,7 @@ Goal: make the repository understandable and playable within seconds of opening 
 - [ ] Add a short GIF or video showing movement and Signal Hunt if repository size remains reasonable.
 - [ ] Add a concise project description before the long feature list.
 - [ ] Document Free Flight and Signal Hunt controls separately.
-- [ ] Document the local ESM development server command.
+- [ ] Document the direct-open local workflow: download or clone, then open `index.html`.
 - [ ] Document the supported browser baseline.
 - [ ] Document the project architecture at a high level.
 - [ ] Add a short credits and acknowledgements section.
@@ -385,7 +439,7 @@ Goal: make the repository understandable and playable within seconds of opening 
 
 Goal: practice Vue 3 architecture without replacing the canonical Vanilla edition.
 
-Start this work only after Milestone 1 stabilizes the framework-agnostic engine API.
+Start this work only after Milestone 1 stabilizes the framework-agnostic engine API. The Vue fork may convert or adapt the engine to ESM internally, but that decision must not alter the canonical classic-script edition.
 
 ### Repository and tooling rules
 
@@ -449,10 +503,11 @@ Goal: produce a museum-grade Internet Explorer 11 build without degrading the ca
 
 ### Build output
 
-- [ ] Bundle ESM source to a classic IIFE script with Rollup or an equivalent approved bundler.
+- [ ] Use the canonical classic-script source layout as the starting point.
 - [ ] Transpile modern syntax for IE11 with Babel `preset-env`.
 - [ ] Include only required ES5-era polyfills.
-- [ ] Ensure IE11 never receives an untranspiled module entry point.
+- [ ] Either preserve the ordered multi-file layout or create a Trident-only concatenated IIFE bundle for distribution.
+- [ ] Ensure IE11 receives only classic scripts and never receives a native module entry point.
 - [ ] Keep source maps available for debugging but out of the default page payload if unnecessary.
 
 Likely transforms or polyfills include:
@@ -503,7 +558,7 @@ Promise, if any legacy feature still requires it
 - The default city renders in IE11 through WebGL 1.
 - Core flight, collision, mission, and reset behavior works.
 - Unsupported optional features fail visibly and safely.
-- No Vue 3 or native ESM code is shipped to IE11.
+- No Vue 3 or native module script is shipped to IE11.
 - The canonical edition remains unaffected by legacy compatibility code.
 
 ---
@@ -599,7 +654,7 @@ A task is complete only when all applicable items below are true.
 
 ## Code quality
 
-- [ ] Module ownership and dependencies are clear.
+- [ ] File ownership, namespace exports, and dependency order are clear.
 - [ ] Public APIs are smaller than internal implementation details.
 - [ ] New constants are named and centralized rather than duplicated.
 - [ ] Tests cover new pure logic and important edge cases.
@@ -611,7 +666,7 @@ A task is complete only when all applicable items below are true.
 Before handoff, run the checks currently documented in `AGENTS.md`. At minimum:
 
 ```text
-JavaScript syntax or module validation
+JavaScript syntax validation
 Automated tests, when present
 git diff --check
 git status --short
@@ -627,7 +682,7 @@ If the architecture changes, update `AGENTS.md` so these commands remain accurat
 ```text
 v1.3.4 baseline
     ↓
-ESM engine extraction
+Classic-script engine extraction
     ↓
 World floor and navigation boundaries
     ↓
@@ -646,4 +701,4 @@ Trident Edition fork
 Optional Canvas 2D renderer experiment
 ```
 
-The first major target is a polished canonical release with a stable ESM engine and a complete Signal Hunt loop. The Vue and legacy editions must build on that stable design instead of forcing compromises into the primary project.
+The first major target is a polished canonical release with a stable modular classic-script engine and a complete Signal Hunt loop. The Vue and legacy editions must build on that stable design instead of forcing compromises into the primary project.
