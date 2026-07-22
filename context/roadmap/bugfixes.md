@@ -6,7 +6,7 @@ This document tracks confirmed bugs, their root causes, and the planned fixes.
 
 ---
 
-## BUG-001 — Analog Vision turns all visual elements green `[P1]`
+## BUG-001 — Analog Vision turns all visual elements green `[P1]` — Fixed in 1.5.2
 
 **Symptom:** Enabling Analog Vision makes the entire scene uniformly green. HUD elements that normally use distinct colors (the NOSEVIEW title, ALT/HDG readouts) lose their cyan tint and become green. Building antennas, landmark edges, and landmark accent lines also lose their distinguishing colors and become green variants.
 
@@ -19,11 +19,16 @@ This document tracks confirmed bugs, their root causes, and the planned fixes.
 
 **Fix plan:**
 
-- [ ] Preserve the base HUD color distinction under Analog Vision. Instead of a blanket green override, apply a subtler green shift or keep the original cyan hue with a slight green bias so that the NOSEVIEW title and flight parameters remain readable against the green noise overlay.
-- [ ] Keep the crosshair orange/red identity under Analog Vision (currently unaffected, but verify).
-- [ ] Adjust the renderer antenna and landmark accent colors under Analog Vision to retain some color variation (for example, shift hues toward green-cyan rather than pure green, or preserve a warm accent for landmark accents).
-- [ ] Verify that navigation alerts (yellow/orange) remain visually distinct when Analog Vision is enabled.
-- [ ] Test the combined state: Analog Vision + HUD enabled, Analog Vision + HUD disabled, Analog Vision + Digital Rain.
+- [x] Preserve the base HUD color distinction under Analog Vision. Instead of a blanket green override, apply a subtler green shift or keep the original cyan hue with a slight green bias so that the NOSEVIEW title and flight parameters remain readable against the green noise overlay.
+- [x] Keep the crosshair orange/red identity under Analog Vision (currently unaffected, but verify).
+- [x] Adjust the renderer antenna and landmark accent colors under Analog Vision to retain some color variation (for example, shift hues toward green-cyan rather than pure green, or preserve a warm accent for landmark accents).
+- [x] Verify that navigation alerts (yellow/orange) remain visually distinct when Analog Vision is enabled.
+- [x] Test the combined state: Analog Vision + HUD enabled, Analog Vision + HUD disabled, Analog Vision + Digital Rain.
+
+**Fix history:**
+
+- `1.5.1` — first pass: replaced blanket green with a teal HUD (`#4de6bc`) and shifted antenna/landmark hues toward green-cyan. Result was still perceived as insufficiently chromatic: HUD readouts, antennas and landmark accents still read as "greenish" under the green noise overlay.
+- `1.5.2` — reinforced pass: NOSEVIEW title now uses an amber identity (`#ffc042` with warm shadow), ALT/HDG readouts stay clearly cyan (`#66f7ff`) with blue shadow, antennas shifted to bright cyan (`[0.25, 0.95, 1.0]`), landmark edges to cyan-teal (`[0.35, 0.95, 0.95]`), and landmark accents to warm amber (`[1.0, 0.75, 0.2]`) to survive the green overlay and remain chromatically distinct.
 
 ---
 
@@ -56,5 +61,5 @@ This document tracks confirmed bugs, their root causes, and the planned fixes.
 
 | ID | Bug | Priority | Status |
 | --- | --- | --- | --- |
-| BUG-001 | Analog Vision makes all elements green | P1 | Open |
+| BUG-001 | Analog Vision makes all elements green | P1 | Fixed in 1.5.2 |
 | BUG-002 | Navigation Limit bypassed by steep vertical flight | P1 | Open |

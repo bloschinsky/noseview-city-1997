@@ -194,8 +194,19 @@
     }
 
     .canvas-wrap.analog-vision .hud {
-      color: #67ff9a;
-      text-shadow: 0 0 4px #00ff66, 0 0 10px rgba(0, 255, 102, 0.75);
+      color: #4ff2ff;
+      text-shadow: 0 0 4px #00b7ff, 0 0 10px rgba(0, 190, 255, 0.65);
+    }
+
+    .canvas-wrap.analog-vision .hud-name {
+      color: #ffc042;
+      text-shadow: 0 0 5px #ff7a1a, 0 0 12px rgba(255, 170, 60, 0.7);
+    }
+
+    .canvas-wrap.analog-vision .hud-alt,
+    .canvas-wrap.analog-vision .hud-hdg {
+      color: #66f7ff;
+      text-shadow: 0 0 4px #0088ff, 0 0 10px rgba(0, 170, 255, 0.7);
     }
 
     .canvas-wrap.hud-hidden .hud { display: none; }

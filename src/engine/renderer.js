@@ -359,17 +359,17 @@
       drawGeometry(
         cityGeometry.antennas,
         gl.LINES,
-        frameState.analogVisionEnabled ? [0.0, 0.92, 0.4, 1] : [0.0, 0.78, 1.0, 1]
+        frameState.analogVisionEnabled ? [0.25, 0.95, 1.0, 1] : [0.0, 0.78, 1.0, 1]
       );
       drawGeometry(
         cityGeometry.landmarkEdges,
         gl.LINES,
-        frameState.analogVisionEnabled ? [0.32, 1.0, 0.58, 1] : [0.0, 0.78, 1.0, 1]
+        frameState.analogVisionEnabled ? [0.35, 0.95, 0.95, 1] : [0.0, 0.78, 1.0, 1]
       );
       drawGeometry(
         cityGeometry.landmarkAccents,
         gl.LINES,
-        frameState.analogVisionEnabled ? [0.72, 1.0, 0.52, 1] : [0.55, 0.96, 1.0, 1]
+        frameState.analogVisionEnabled ? [1.0, 0.75, 0.2, 1] : [0.55, 0.96, 1.0, 1]
       );
     }
 
