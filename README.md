@@ -63,3 +63,6 @@ The browser floor is primarily set by CSS `aspect-ratio`: it arrived in [Chrome 
 ## Run
 
 Open `index.html` in a modern browser with WebGL support. No installation or build step is required.
+
+The tested `v1.3.4` behavior, browser matrix, and reference screenshots are
+recorded in [`docs/testing.md`](docs/testing.md).

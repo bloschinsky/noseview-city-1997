@@ -46,26 +46,26 @@ The canonical edition must remain lightweight, dependency-free at runtime, stati
 
 Goal: create a known-good reference before structural changes.
 
-- [ ] Confirm that the deployed GitHub Pages files match the current default branch.
-- [ ] Create an annotated `v1.3.4` tag for the current stable baseline if that tag does not already exist.
-- [ ] Record the baseline browser test matrix in `README.md` or `docs/testing.md`.
-- [ ] Capture at least one desktop screenshot of the default state.
-- [ ] Capture at least one screenshot with Analog Vision and Digital Rain enabled.
-- [ ] Record the current expected controls, initial camera position, speed modes, and default settings.
+- [x] Confirm that the deployed GitHub Pages files match the current default branch.
+- [x] Create an annotated `v1.3.4` tag for the current stable baseline if that tag does not already exist.
+- [x] Record the baseline browser test matrix in `README.md` or `docs/testing.md`.
+- [x] Capture at least one desktop screenshot of the default state.
+- [x] Capture at least one screenshot with Analog Vision and Digital Rain enabled.
+- [x] Record the current expected controls, initial camera position, speed modes, and default settings.
 
 ### Baseline manual test checklist
 
-- [ ] The city renders with 26 structures.
-- [ ] `W/A/S/D` movement works.
-- [ ] Arrow-key view control works.
-- [ ] On-screen pointer/touch controls work.
-- [ ] Reset restores the documented initial camera state.
-- [ ] Speed cycling works through Slow, Normal, and Fast.
-- [ ] City regeneration creates a new city and resets the camera.
-- [ ] Building wall and rooftop collisions work.
-- [ ] HUD, Analog Vision, Digital Rain, and Sound toggles work.
-- [ ] The settings dialog traps and restores keyboard focus correctly.
-- [ ] Reduced-motion mode disables or simplifies animated overlays.
+- [x] The city renders with 26 structures.
+- [x] `W/A/S/D` movement works.
+- [x] Arrow-key view control works.
+- [x] On-screen pointer/touch controls work.
+- [x] Reset restores the documented initial camera state.
+- [x] Speed cycling works through Slow, Normal, and Fast.
+- [x] City regeneration creates a new city and resets the camera.
+- [x] Building wall and rooftop collisions work.
+- [x] HUD, Analog Vision, Digital Rain, and Sound toggles work.
+- [x] The settings dialog traps and restores keyboard focus correctly.
+- [x] Reduced-motion mode disables or simplifies animated overlays.
 
 ### Acceptance criteria
 
