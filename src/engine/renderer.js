@@ -74,7 +74,14 @@
     let destroyed = false;
     let contextLost = false;
     let skyTextureInitialized = false;
-    let cityGeometry = { faces: null, edges: null, antennas: null };
+    let cityGeometry = {
+      faces: null,
+      edges: null,
+      antennas: null,
+      landmarkFaces: null,
+      landmarkEdges: null,
+      landmarkAccents: null
+    };
 
     function compileShader(type, source) {
       const shader = gl.createShader(type);
@@ -243,20 +250,36 @@
 
     function replaceCity(geometry) {
       if (destroyed) throw new Error("Renderer has been destroyed");
-      const next = { faces: null, edges: null, antennas: null };
+      const next = {
+        faces: null,
+        edges: null,
+        antennas: null,
+        landmarkFaces: null,
+        landmarkEdges: null,
+        landmarkAccents: null
+      };
       try {
         next.faces = createGeometry(geometry.faces, 3);
         next.edges = createGeometry(geometry.edges, 3);
         next.antennas = createGeometry(geometry.antennas, 3);
+        next.landmarkFaces = createGeometry(geometry.landmarkFaces, 3);
+        next.landmarkEdges = createGeometry(geometry.landmarkEdges, 3);
+        next.landmarkAccents = createGeometry(geometry.landmarkAccents, 3);
       } catch (error) {
         deleteGeometry(next.faces);
         deleteGeometry(next.edges);
         deleteGeometry(next.antennas);
+        deleteGeometry(next.landmarkFaces);
+        deleteGeometry(next.landmarkEdges);
+        deleteGeometry(next.landmarkAccents);
         throw error;
       }
       deleteGeometry(cityGeometry.faces);
       deleteGeometry(cityGeometry.edges);
       deleteGeometry(cityGeometry.antennas);
+      deleteGeometry(cityGeometry.landmarkFaces);
+      deleteGeometry(cityGeometry.landmarkEdges);
+      deleteGeometry(cityGeometry.landmarkAccents);
       cityGeometry = next;
     }
 
@@ -328,6 +351,7 @@
       gl.enable(gl.POLYGON_OFFSET_FILL);
       gl.polygonOffset(1, 1);
       drawGeometry(cityGeometry.faces, gl.TRIANGLES, [0.018, 0.085, 0.038, 1]);
+      drawGeometry(cityGeometry.landmarkFaces, gl.TRIANGLES, [0.012, 0.07, 0.075, 1]);
       gl.disable(gl.POLYGON_OFFSET_FILL);
 
       const flicker = 0.92 + Math.sin(frameState.time * 0.009) * 0.055 + Math.sin(frameState.time * 0.037) * 0.02;
@@ -336,6 +360,16 @@
         cityGeometry.antennas,
         gl.LINES,
         frameState.analogVisionEnabled ? [0.0, 0.92, 0.4, 1] : [0.0, 0.78, 1.0, 1]
+      );
+      drawGeometry(
+        cityGeometry.landmarkEdges,
+        gl.LINES,
+        frameState.analogVisionEnabled ? [0.32, 1.0, 0.58, 1] : [0.0, 0.78, 1.0, 1]
+      );
+      drawGeometry(
+        cityGeometry.landmarkAccents,
+        gl.LINES,
+        frameState.analogVisionEnabled ? [0.72, 1.0, 0.52, 1] : [0.55, 0.96, 1.0, 1]
       );
     }
 
@@ -353,6 +387,9 @@
       deleteGeometry(cityGeometry.faces);
       deleteGeometry(cityGeometry.edges);
       deleteGeometry(cityGeometry.antennas);
+      deleteGeometry(cityGeometry.landmarkFaces);
+      deleteGeometry(cityGeometry.landmarkEdges);
+      deleteGeometry(cityGeometry.landmarkAccents);
       deleteGeometry(groundFaces);
       deleteGeometry(gridLines);
       deleteGeometry(roadLines);

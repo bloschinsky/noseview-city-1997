@@ -49,14 +49,109 @@
         }
       },
       {
-        name: "building metadata and colliders stay synchronized",
+        name: "city keeps 26 structures and all landmark types",
         run() {
           const city = Noseview.city.generateCity(19810001);
-          assert(city.buildings.length === 26, "Expected 26 buildings");
-          city.buildings.forEach(building => {
-            assert(city.colliders.some(collider => collider.buildingId === building.id && collider.part === "base"), `Missing base collider for ${building.id}`);
-            assert(Boolean(building.tier) === city.colliders.some(collider => collider.buildingId === building.id && collider.part === "tier"), `Tier collider mismatch for ${building.id}`);
+          assert(city.structures.length === 26, "Expected 26 structures");
+          assert(city.buildings.length === 23, "Expected 23 ordinary buildings");
+          assert(city.landmarks.length === 3, "Expected three landmarks");
+          assert(
+            JSON.stringify(city.landmarks.map(landmark => landmark.type).sort()) ===
+              JSON.stringify(Noseview.city.LANDMARK_TYPES.slice().sort()),
+            "Every city must contain each landmark type"
+          );
+          assert(
+            new Set(city.structures.map(structure => structure.id)).size === city.structures.length,
+            "Structure IDs are not unique"
+          );
+          assert(
+            new Set(city.landmarks.map(landmark => `${landmark.lot.col},${landmark.lot.row}`)).size === 3,
+            "Landmarks do not use unique lots"
+          );
+        }
+      },
+      {
+        name: "default seed pins landmark types and positions",
+        run() {
+          const city = Noseview.city.generateCity(19810001);
+          const actual = city.landmarks.map(landmark => ({
+            type: landmark.type,
+            col: landmark.lot.col,
+            row: landmark.lot.row
+          }));
+          const expected = [
+            { type: "helipad-complex", col: -2, row: 2 },
+            { type: "needle-tower", col: 1, row: -1 },
+            { type: "telecom-tower", col: -3, row: -2 }
+          ];
+          assert(JSON.stringify(actual) === JSON.stringify(expected), "Pinned landmark layout changed");
+        }
+      },
+      {
+        name: "solid structure parts keep geometry and colliders synchronized",
+        run() {
+          const city = Noseview.city.generateCity(19810001);
+          let buildingSolidParts = 0;
+          let landmarkSolidParts = 0;
+          let buildingLineVertices = 0;
+          let landmarkLineVertices = 0;
+          city.structures.forEach(structure => {
+            const solidParts = structure.parts.filter(part => part.solid);
+            const highestSolidY = solidParts.reduce((maximum, part) => Math.max(maximum, part.bounds.maxY), 0);
+            assert(structure.signalAnchor.y > highestSolidY, `Signal anchor is not clear of ${structure.id}`);
+            solidParts.forEach(part => {
+              const collider = city.colliders.find(candidate => candidate.partId === part.id);
+              assert(Boolean(collider), `Missing collider for ${part.id}`);
+              ["minX", "maxX", "minY", "maxY", "minZ", "maxZ"].forEach(name => {
+                assertNear(collider[name], part.bounds[name], Number.EPSILON, `${part.id} ${name} mismatch`);
+              });
+              assert(part.geometry.faceCount === 36, `Face geometry mismatch for ${part.id}`);
+              assert(part.geometry.edgeCount === 24, `Edge geometry mismatch for ${part.id}`);
+            });
+            const decorationVertices = structure.parts
+              .filter(part => !part.solid)
+              .reduce((total, part) => total + part.geometry.lineCount, 0);
+            if (structure.kind === "landmark") {
+              landmarkSolidParts += solidParts.length;
+              landmarkLineVertices += decorationVertices;
+            } else {
+              buildingSolidParts += solidParts.length;
+              buildingLineVertices += decorationVertices;
+            }
           });
+          assert(city.geometry.faces.length / 3 === buildingSolidParts * 36, "Building face buffer is out of sync");
+          assert(city.geometry.edges.length / 3 === buildingSolidParts * 24, "Building edge buffer is out of sync");
+          assert(city.geometry.landmarkFaces.length / 3 === landmarkSolidParts * 36, "Landmark face buffer is out of sync");
+          assert(city.geometry.landmarkEdges.length / 3 === landmarkSolidParts * 24, "Landmark edge buffer is out of sync");
+          assert(city.geometry.antennas.length / 3 === buildingLineVertices, "Building accent buffer is out of sync");
+          assert(city.geometry.landmarkAccents.length / 3 === landmarkLineVertices, "Landmark accent buffer is out of sync");
+        }
+      },
+      {
+        name: "landmark colliders stay outside the initial spawn corridor",
+        run() {
+          const corridor = Noseview.city.SPAWN_CORRIDOR;
+          [0, 1, 19810001, 123456789, 0xffffffff].forEach(seed => {
+            const city = Noseview.city.generateCity(seed);
+            city.colliders
+              .filter(collider => collider.structureKind === "landmark")
+              .forEach(collider => {
+                const intersects = collider.maxX > corridor.centerX - corridor.halfWidth &&
+                  collider.minX < corridor.centerX + corridor.halfWidth &&
+                  collider.maxZ > corridor.minZ && collider.minZ < corridor.maxZ;
+                assert(!intersects, `Landmark ${collider.structureId} blocks the spawn corridor for seed ${seed}`);
+              });
+          });
+        }
+      },
+      {
+        name: "different seeds vary landmark placement",
+        run() {
+          const first = Noseview.city.generateCity(19810001).landmarks
+            .map(landmark => `${landmark.type}:${landmark.lot.col},${landmark.lot.row}`);
+          const second = Noseview.city.generateCity(19810002).landmarks
+            .map(landmark => `${landmark.type}:${landmark.lot.col},${landmark.lot.row}`);
+          assert(JSON.stringify(first) !== JSON.stringify(second), "Different seeds reused the same landmark layout");
         }
       },
       {

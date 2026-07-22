@@ -119,7 +119,7 @@
         headingDegrees: (camera.yaw * 180 / Math.PI + 3600) % 360,
         pitchDegrees: camera.pitch * 180 / Math.PI,
         fps: Math.min(smoothedFps, 999),
-        buildingCount: city.buildings.length,
+        buildingCount: city.structures.length,
         speed: { ...snapshot.speed },
         effects: { ...effects },
         sound: { available: Boolean(sound.available), enabled: Boolean(sound.enabled) },

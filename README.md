@@ -14,6 +14,7 @@ A retro-futuristic navigation terminal for exploring a procedurally generated 3D
 ## Features
 
 - Free flight through a three-dimensional city
+- Three deterministic procedural landmarks in every 26-structure city
 - Solid collisions with building walls and rooftops
 - Ground-floor protection and automatic navigation-boundary recovery
 - Three speed modes and procedural city regeneration
@@ -73,6 +74,8 @@ Open `index.html` in a modern browser with WebGL support. No installation or bui
 ## Architecture
 
 The canonical edition uses ordered classic scripts under `src/`, with no native modules, dependencies, bundler, or generated runtime bundle. The framework-agnostic engine is created through `window.Noseview.createNoseviewEngine()`; rendering, city generation, flight/collisions, navigation boundaries, effects, audio, HUD, and page controls remain separate subsystems behind that API.
+
+City generation returns unified structure metadata together with separate building and landmark collections. Every seed promotes three of the 26 structure lots into a telecommunications tower, needle tower, and helipad/antenna complex, so landmarks do not increase the displayed structure count. Solid landmark parts generate their render geometry and AABB colliders together, and each landmark exposes a stable future Signal Hunt anchor.
 
 `window.Noseview` is the only intentional application-level global. `src/main.js` loads last and only wires the engine to the existing page UI.
 

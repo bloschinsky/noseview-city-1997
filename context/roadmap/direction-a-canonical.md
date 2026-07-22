@@ -246,16 +246,18 @@ SAFE → WARNING → CRITICAL → FORCED RESET
 
 Goal: make generated cities recognizable and easier to navigate without losing the primitive low-poly style.
 
-- [ ] Extend city output with structured building and landmark metadata.
-- [ ] Add at least three landmark types.
-- [ ] Implement a telecommunications tower.
-- [ ] Implement a narrow spire or needle tower.
-- [ ] Implement a rooftop helipad or large antenna complex.
-- [ ] Give every solid landmark synchronized face, edge, and collider geometry.
-- [ ] Prevent landmarks from blocking the initial camera spawn corridor.
-- [ ] Make landmark placement deterministic for a given city seed.
-- [ ] Ensure landmarks remain visually distinct in default and Analog Vision modes.
-- [ ] Decide whether landmarks replace ordinary structures or increase the displayed structure count, then document the rule.
+- [x] Extend city output with structured building and landmark metadata.
+- [x] Add at least three landmark types.
+- [x] Implement a telecommunications tower.
+- [x] Implement a narrow spire or needle tower.
+- [x] Implement a rooftop helipad or large antenna complex.
+- [x] Give every solid landmark synchronized face, edge, and collider geometry.
+- [x] Prevent landmarks from blocking the initial camera spawn corridor.
+- [x] Make landmark placement deterministic for a given city seed.
+- [x] Ensure landmarks remain visually distinct in default and Analog Vision modes.
+- [x] Decide whether landmarks replace ordinary structures or increase the displayed structure count, then document the rule.
+
+Landmarks replace three ordinary structures within the existing 26-structure city total. Every city contains one landmark of each type.
 
 ### Acceptance criteria
 
