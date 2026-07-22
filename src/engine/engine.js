@@ -20,6 +20,7 @@
       setEnabled() { return Promise.resolve(false); },
       getState() { return { available: false, enabled: false }; },
       handleNavigationEvent() {},
+      playCollisionCue() {},
       stopNavigationCues() {},
       destroy() { return Promise.resolve(); }
     };
@@ -45,6 +46,8 @@
     let previousTime = 0;
     let lastTelemetryTime = 0;
     let smoothedFps = 60;
+    let lastCollisionTime = 0;
+    const COLLISION_COOLDOWN = 300;
     let currentSeed = Noseview.city.DEFAULT_SEED;
     let city = null;
     let navigationSnapshot;
@@ -144,7 +147,15 @@
       if (!running || destroyed || contextLost) return;
       const deltaTime = Math.max(0, Math.min((time - previousTime) / 1000, 0.05));
       previousTime = time;
-      flight.update(deltaTime);
+      const flightResult = flight.update(deltaTime);
+
+      if (flightResult.blocked) {
+        const now = root.performance.now();
+        if (now - lastCollisionTime > COLLISION_COOLDOWN) {
+          lastCollisionTime = now;
+          if (typeof music.playCollisionCue === "function") music.playCollisionCue();
+        }
+      }
 
       let flightSnapshot = flight.getSnapshot();
       const previousNavigationState = navigationSnapshot.state;

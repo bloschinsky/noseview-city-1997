@@ -67,7 +67,7 @@ Missions always start hovering above the yellow-cornered helipad-complex landing
 
 ## Navigation Safety
 
-The camera remains at least `0.6` world units above the ground. Signal degradation begins 90 units from the world center, `OUT OF NAVIGATION AREA` and a five-second return countdown begin at 120 units, and crossing 150 units immediately restores the initial camera position (currently the helipad-complex landing pad of the active city). The same 90 / 120 / 150 warning, critical, and hard-limit thresholds apply symmetrically to vertical distance from the spawn altitude, so climbing steeply upward — or diving well below the ground plane — engages the same recovery sequence. Returning below the critical boundary cancels the countdown. With `SOUND` enabled, these transitions use generated retro attention, timer, and teleport cues; no sample files are loaded.
+The camera remains at least `0.6` world units above the ground. Signal degradation begins 90 units from the world center, `OUT OF NAVIGATION AREA` and a five-second return countdown begin at 120 units, and crossing 150 units immediately restores the initial camera position (currently the helipad-complex landing pad of the active city). The same 90 / 120 / 150 warning, critical, and hard-limit thresholds apply symmetrically to vertical distance from the spawn altitude, so climbing steeply upward — or diving well below the ground plane — engages the same recovery sequence. Returning below the critical boundary cancels the countdown. With `SOUND` enabled, these transitions use generated retro attention, timer, and teleport cues, along with a dull "bump" sound when the camera hits an obstacle; no sample files are loaded.
 
 ## Run
 

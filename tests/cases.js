@@ -208,7 +208,7 @@
             });
             flight.setControl("forward", true);
             const result = flight.update(1);
-            assert(result.groundCorrected, `Ground correction was not reported for speed ${speedIndex}`);
+            assert(result.blocked, `Ground correction was not reported for speed ${speedIndex}`);
             assertNear(flight.getSnapshot().camera.y, 0.6, 0.000001, `Minimum altitude changed for speed ${speedIndex}`);
             flight.setControl("forward", false);
             flight.update(1);
@@ -475,6 +475,31 @@
             nullThrew = error instanceof TypeError;
           }
           assert(nullThrew, "setInitialCamera accepted a null camera");
+        }
+      },
+      {
+        name: "flight.update detects collisions with structures",
+        run() {
+          const flight = Noseview.flight.createFlightModel({
+            initialCamera: { x: 0, y: 10, z: 0, yaw: 0, pitch: 0 },
+            colliders: [{ minX: 1, maxX: 2, minY: 0, maxY: 20, minZ: -1, maxZ: 1 }]
+          });
+          flight.setControl("strafeRight", true);
+          const result = flight.update(0.2);
+          assert(result.blocked === true, "Collision with wall was not detected");
+          assert(flight.getSnapshot().camera.x < 1, "Camera penetrated the collider");
+        }
+      },
+      {
+        name: "flight.update detects collisions with the ground",
+        run() {
+          const flight = Noseview.flight.createFlightModel({
+            initialCamera: { x: 0, y: 0.61, z: 0, yaw: 0, pitch: -Math.PI / 4 }
+          });
+          flight.setControl("forward", true);
+          const result = flight.update(0.1);
+          assert(result.blocked === true, "Collision with ground was not detected");
+          assertNear(flight.getSnapshot().camera.y, 0.6, Number.EPSILON, "Camera went below ground level");
         }
       }
     ];

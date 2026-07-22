@@ -294,6 +294,39 @@
       noise.stop(now + 0.6);
     }
 
+    function scheduleCollisionCue() {
+      const now = audioContext.currentTime + 0.005;
+      // Slight music duck so the cue cuts through but stays retro and dry.
+      duckMusic(now, 0.12);
+
+      // PC‑speaker style: square-wave, bright and electronic.
+      const osc = audioContext.createOscillator();
+      const env = audioContext.createGain();
+      osc.type = "square";
+
+      // Two-blip electronic warning with a tiny pitch step between blips.
+      // First blip: slight down-chirp for character.
+      osc.frequency.setValueAtTime(1300, now);
+      osc.frequency.linearRampToValueAtTime(1150, now + 0.05);
+      // Second blip: step up, then settle.
+      osc.frequency.setValueAtTime(1600, now + 0.085);
+      osc.frequency.linearRampToValueAtTime(1200, now + 0.13);
+
+      // Amplitude envelope with a short gap between two bright pulses.
+      env.gain.setValueAtTime(0.0001, now);
+      env.gain.exponentialRampToValueAtTime(0.30, now + 0.008);   // attack 8ms
+      env.gain.exponentialRampToValueAtTime(0.0001, now + 0.06);  // decay 60ms
+      env.gain.setValueAtTime(0.0001, now + 0.08);                // tiny gap
+      env.gain.exponentialRampToValueAtTime(0.26, now + 0.095);   // second blip
+      env.gain.exponentialRampToValueAtTime(0.0001, now + 0.14);  // release
+
+      osc.connect(env);
+      env.connect(sfxBus);
+      trackSource(osc);
+      osc.start(now);
+      osc.stop(now + 0.16);
+    }
+
     function scheduleStep(step, time) {
       const bassNote = bassPattern[step];
       const leadNote = leadPattern[step];
@@ -489,7 +522,11 @@
       teleportNoise = null;
     }
 
-    return { setEnabled, getState, handleNavigationEvent, stopNavigationCues, destroy };
+    function playCollisionCue() {
+      if (canPlayNavigationCue()) scheduleCollisionCue();
+    }
+
+    return { setEnabled, getState, handleNavigationEvent, playCollisionCue, stopNavigationCues, destroy };
   }
 
   Noseview.audio.createMusic = createMusic;

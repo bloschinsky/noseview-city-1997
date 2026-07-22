@@ -260,6 +260,7 @@ Goal: make generated cities recognizable and easier to navigate without losing t
 Landmarks replace three ordinary structures within the existing 26-structure city total. Every city contains one landmark of each type.
 
 - [x] Spawn the mission on the helipad-complex landing pad and route `RESET POSITION` / `R` to that pad; `GENERATE NEW CITY` regenerates the layout without moving the pilot (`1.5.4`, via `Noseview.city.getMissionStart` and `flight.setInitialCamera`).
+- [x] Add a short, dull "bump" sound effect (collision cue) when the camera hits a wall or the floor; use a cooldown to prevent rapid repeats (`1.5.5`, via `flight.update` returning a blocked status and `music.playCollisionCue`).
 
 ### Acceptance criteria
 

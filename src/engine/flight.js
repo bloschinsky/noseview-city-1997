@@ -127,10 +127,12 @@
     function moveCameraAlongAxis(axis, distance) {
       const start = camera[axis];
       const requestedBelowGround = axis === "y" && start + distance < minimumAltitude;
-      if (requestedBelowGround) distance = minimumAltitude - start;
-      if (distance === 0) return requestedBelowGround && start <= minimumAltitude;
+      let moveDistance = distance;
+      if (requestedBelowGround) moveDistance = minimumAltitude - start;
+      if (distance !== 0 && moveDistance === 0 && requestedBelowGround) return true;
+      if (distance === 0) return false;
 
-      const target = start + distance;
+      const target = start + moveDistance;
       const radiusSquared = cameraRadius * cameraRadius;
       let safeFraction = 1;
 
@@ -165,10 +167,10 @@
         const collisionMax = max + padding;
         let collisionFraction = 1;
 
-        if (distance > 0 && start <= collisionMin && target > collisionMin) {
-          collisionFraction = (collisionMin - start) / distance;
-        } else if (distance < 0 && start >= collisionMax && target < collisionMax) {
-          collisionFraction = (collisionMax - start) / distance;
+        if (moveDistance > 0 && start <= collisionMin && target > collisionMin) {
+          collisionFraction = (collisionMin - start) / moveDistance;
+        } else if (moveDistance < 0 && start >= collisionMax && target < collisionMax) {
+          collisionFraction = (collisionMax - start) / moveDistance;
         }
 
         if (collisionFraction < safeFraction) {
@@ -176,9 +178,9 @@
         }
       });
 
-      camera[axis] = start + distance * safeFraction;
+      camera[axis] = start + moveDistance * safeFraction;
       if (axis === "y" && camera.y < minimumAltitude) camera.y = minimumAltitude;
-      return requestedBelowGround && camera.y <= minimumAltitude;
+      return (requestedBelowGround && distance < 0) || safeFraction < 1;
     }
 
     function moveCamera(displacementX, displacementY, displacementZ) {
@@ -187,13 +189,13 @@
       const stepX = displacementX / steps;
       const stepY = displacementY / steps;
       const stepZ = displacementZ / steps;
-      let groundCorrected = false;
+      let blocked = false;
       for (let index = 0; index < steps; index += 1) {
-        moveCameraAlongAxis("x", stepX);
-        groundCorrected = moveCameraAlongAxis("y", stepY) || groundCorrected;
-        moveCameraAlongAxis("z", stepZ);
+        blocked = moveCameraAlongAxis("x", stepX) || blocked;
+        blocked = moveCameraAlongAxis("y", stepY) || blocked;
+        blocked = moveCameraAlongAxis("z", stepZ) || blocked;
       }
-      return groundCorrected;
+      return blocked;
     }
 
     function update(deltaTime) {
@@ -219,12 +221,12 @@
         moveForward /= magnitude;
         moveRight /= magnitude;
       }
-      const groundCorrected = moveCamera(
+      const blocked = moveCamera(
         (forward[0] * moveForward + rightX * moveRight) * moveStep,
         forward[1] * moveForward * moveStep,
         (forward[2] * moveForward + rightZ * moveRight) * moveStep
       );
-      return { groundCorrected };
+      return { blocked };
     }
 
     function getSnapshot() {
