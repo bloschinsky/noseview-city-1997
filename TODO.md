@@ -11,6 +11,13 @@ This file is the lightweight entry point for NOSEVIEW 1997 planning. Detailed mi
 | C | [Legacy Compatibility Edition](context/roadmap/direction-c-legacy.md) | Museum-grade IE11 compatibility experiment | Future fork |
 | D | [Optional Renderer Experiment](context/roadmap/direction-d-renderer.md) | Canvas 2D wireframe fallback research | Optional |
 
+## Known Bugs
+
+| ID | Tracker | Bug | Priority | Status |
+| --- | --- | --- | --- | --- |
+| BUG-001 | [Bugfixes](context/roadmap/bugfixes.md) | Analog Vision turns all visual elements green | P1 | Open |
+| BUG-002 | [Bugfixes](context/roadmap/bugfixes.md) | Navigation Limit bypassed by steep vertical flight | P1 | Open |
+
 Shared constraints, deferred ideas, the global Definition of Done, required checks, and the recommended delivery sequence live in [Shared Roadmap Context](context/roadmap/shared.md).
 
 ## Instructions for Coding Agents
@@ -41,6 +48,7 @@ Shared constraints, deferred ideas, the global Definition of Done, required chec
 
 ```text
 context/roadmap/
+├── bugfixes.md
 ├── direction-a-canonical.md
 ├── direction-b-vue.md
 ├── direction-c-legacy.md
