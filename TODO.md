@@ -257,6 +257,15 @@ Goal: prevent the player from flying under the world or becoming lost in empty s
 - [x] Ensure boundary warnings are available as text, not only as visual noise.
 - [x] Keep reduced-motion behavior usable and non-flashing.
 
+### 2.3 Navigation audio cues
+
+- [x] Play a procedural retro attention signal on the first navigation warning.
+- [x] Emit deterministic one-second countdown ticks, with a double final tick.
+- [x] Play a layered procedural teleport sweep on automatic return.
+- [x] Share the lazy Web Audio context and keep all cues silent while `SOUND` is disabled.
+- [x] Cancel pending navigation cues when the player leaves the critical area or resets manually.
+- [x] Cover navigation events, audio scheduling, cancellation, and lazy initialization with tests.
+
 Suggested state model:
 
 ```text
@@ -271,6 +280,7 @@ SAFE → WARNING → CRITICAL → FORCED RESET
 - The player receives clear warning before a forced reset.
 - Boundary behavior is deterministic and independent of frame rate.
 - Reset clears warning state, countdown state, input state, and motion state.
+- When sound is enabled, warning, countdown, and forced-return states have distinct procedural audio cues.
 
 ---
 

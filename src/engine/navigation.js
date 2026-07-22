@@ -51,6 +51,7 @@
     let distance = 0;
     let degradation = 0;
     let countdownSeconds = null;
+    let lastCountdownTick = null;
 
     function calculateDistance(position) {
       return Math.hypot(position.x - config.centerX, position.z - config.centerZ);
@@ -81,6 +82,7 @@
       degradation = calculateDegradation(distance);
       state = calculateState(distance);
       countdownSeconds = null;
+      lastCountdownTick = null;
       return getSnapshot();
     }
 
@@ -97,15 +99,24 @@
       degradation = calculateDegradation(distance);
       state = calculateState(distance);
       let forcedResetReason = null;
+      const countdownTicks = [];
 
       if (distance >= config.resetDistance) {
         countdownSeconds = 0;
+        lastCountdownTick = null;
         forcedResetReason = "hard-limit";
       } else if (state === STATES.CRITICAL) {
         if (previousState !== STATES.CRITICAL || countdownSeconds === null) {
           countdownSeconds = config.countdownSeconds;
+          lastCountdownTick = Math.ceil(countdownSeconds);
+          countdownTicks.push(lastCountdownTick);
         } else {
           countdownSeconds = Math.max(0, countdownSeconds - deltaTime);
+          const nextCountdownTick = Math.ceil(countdownSeconds);
+          for (let second = lastCountdownTick - 1; second >= nextCountdownTick; second -= 1) {
+            if (second > 0) countdownTicks.push(second);
+          }
+          lastCountdownTick = nextCountdownTick;
           if (countdownSeconds <= 0.000001) {
             countdownSeconds = 0;
             forcedResetReason = "countdown";
@@ -113,11 +124,13 @@
         }
       } else {
         countdownSeconds = null;
+        lastCountdownTick = null;
       }
 
       return {
         snapshot: getSnapshot(),
         stateChanged: state !== previousState,
+        countdownTicks,
         forcedResetReason
       };
     }

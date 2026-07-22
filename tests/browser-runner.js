@@ -75,6 +75,15 @@
     root.document.body.appendChild(canvas);
     const telemetry = [];
     const events = [];
+    const audioEvents = [];
+    let stoppedNavigationCues = 0;
+    const music = {
+      setEnabled(value) { return Promise.resolve(Boolean(value)); },
+      getState() { return { available: true, enabled: false }; },
+      handleNavigationEvent(event) { audioEvents.push(event); },
+      stopNavigationCues() { stoppedNavigationCues += 1; },
+      destroy() { return Promise.resolve(); }
+    };
     const originalRequestAnimationFrame = root.requestAnimationFrame;
     const originalCancelAnimationFrame = root.cancelAnimationFrame;
     let scheduledFrame = null;
@@ -86,6 +95,7 @@
         resetDistance: 60,
         countdownSeconds: 5
       },
+      music,
       onTelemetry(snapshot) { telemetry.push(snapshot); },
       onNavigationEvent(event) { events.push(event); }
     });
@@ -99,14 +109,18 @@
       engine.start();
       engine.setControl("backward", true);
       let frameTime = root.performance.now();
-      for (let frameIndex = 0; frameIndex < 8 && events.length === 0; frameIndex += 1) {
+      for (let frameIndex = 0; frameIndex < 8 && !events.some(event => event.type === "forced-reset"); frameIndex += 1) {
         const callback = scheduledFrame;
         scheduledFrame = null;
         frameTime += 50;
         callback(frameTime);
       }
-      assert(events.length === 1, "Hard boundary did not emit a forced-reset event");
-      assert(events[0].reason === "hard-limit", "Forced reset reported the wrong reason");
+      const forcedReset = events.find(event => event.type === "forced-reset");
+      assert(Boolean(forcedReset), "Hard boundary did not emit a forced-reset event");
+      assert(forcedReset.reason === "hard-limit", "Forced reset reported the wrong reason");
+      assert(audioEvents.some(event => event.type === "state-change"), "Navigation state changes did not reach audio");
+      assert(audioEvents.some(event => event.type === "countdown-tick" && event.secondsRemaining === 5), "Countdown tick did not reach audio");
+      assert(audioEvents.some(event => event.type === "forced-reset"), "Forced reset did not reach audio");
       const postResetFrame = scheduledFrame;
       scheduledFrame = null;
       frameTime += 50;
@@ -116,11 +130,135 @@
       assert(Math.abs(latest.position.y - 10) < 0.001, "Forced reset changed default altitude");
       assert(Math.abs(latest.position.z - 58) < 0.001, "Forced reset changed default Z");
       assert(latest.navigation.state === "SAFE", "Forced reset left navigation unsafe");
+      engine.resetCamera();
+      assert(stoppedNavigationCues === 1, "Manual reset did not stop navigation cues");
     } finally {
       await engine.destroy();
       root.requestAnimationFrame = originalRequestAnimationFrame;
       root.cancelAnimationFrame = originalCancelAnimationFrame;
       canvas.remove();
+    }
+  }
+
+  function createFakeAudioContextHarness() {
+    const counters = { contexts: 0, oscillators: 0, bufferSources: 0, stoppedSources: 0 };
+
+    class FakeAudioParam {
+      constructor(value) { this.value = value || 0; }
+      cancelScheduledValues() {}
+      setValueAtTime(value) { this.value = value; }
+      linearRampToValueAtTime(value) { this.value = value; }
+      exponentialRampToValueAtTime(value) { this.value = value; }
+    }
+
+    class FakeNode {
+      connect() { return this; }
+      disconnect() {}
+    }
+
+    class FakeSource extends FakeNode {
+      constructor() {
+        super();
+        this.ended = null;
+        this.stopped = false;
+      }
+      addEventListener(type, listener) {
+        if (type === "ended") this.ended = listener;
+      }
+      start() {}
+      stop(time) {
+        if (Number.isFinite(time)) {
+          this.stopTime = time;
+          return;
+        }
+        if (this.stopped) throw new Error("Source already stopped");
+        this.stopped = true;
+        counters.stoppedSources += 1;
+        if (this.ended) this.ended();
+      }
+    }
+
+    class FakeAudioContext {
+      constructor() {
+        counters.contexts += 1;
+        this.currentTime = 1;
+        this.sampleRate = 8000;
+        this.state = "suspended";
+        this.destination = new FakeNode();
+      }
+      createGain() {
+        const node = new FakeNode();
+        node.gain = new FakeAudioParam();
+        return node;
+      }
+      createDynamicsCompressor() {
+        const node = new FakeNode();
+        ["threshold", "knee", "ratio", "attack", "release"].forEach(name => {
+          node[name] = new FakeAudioParam();
+        });
+        return node;
+      }
+      createBuffer(_channels, length) {
+        const data = new Float32Array(length);
+        return { getChannelData() { return data; } };
+      }
+      createOscillator() {
+        counters.oscillators += 1;
+        const source = new FakeSource();
+        source.frequency = new FakeAudioParam();
+        source.detune = new FakeAudioParam();
+        return source;
+      }
+      createBufferSource() {
+        counters.bufferSources += 1;
+        return new FakeSource();
+      }
+      createBiquadFilter() {
+        const node = new FakeNode();
+        node.frequency = new FakeAudioParam();
+        node.Q = new FakeAudioParam();
+        return node;
+      }
+      resume() { this.state = "running"; return Promise.resolve(); }
+      suspend() { this.state = "suspended"; return Promise.resolve(); }
+      close() { this.state = "closed"; return Promise.resolve(); }
+    }
+
+    return { counters, AudioContextClass: FakeAudioContext };
+  }
+
+  async function runNavigationAudioCase() {
+    const harness = createFakeAudioContextHarness();
+    const music = Noseview.audio.createMusic({ AudioContextClass: harness.AudioContextClass });
+    music.handleNavigationEvent({ type: "state-change", from: "SAFE", to: "WARNING" });
+    assert(harness.counters.contexts === 0, "Navigation cue initialized audio before SOUND was enabled");
+
+    try {
+      assert(await music.setEnabled(true), "Fake audio could not be enabled");
+      const baselineOscillators = harness.counters.oscillators;
+      music.handleNavigationEvent({ type: "state-change", from: "SAFE", to: "WARNING" });
+      assert(harness.counters.oscillators === baselineOscillators + 3, "Attention cue did not schedule three tones");
+      music.handleNavigationEvent({ type: "countdown-tick", secondsRemaining: 5 });
+      assert(harness.counters.oscillators === baselineOscillators + 4, "Countdown tick did not schedule one tone");
+      music.handleNavigationEvent({ type: "countdown-tick", secondsRemaining: 1 });
+      assert(harness.counters.oscillators === baselineOscillators + 6, "Final countdown tick did not schedule its double tone");
+
+      const stoppedBeforeCancel = harness.counters.stoppedSources;
+      music.handleNavigationEvent({ type: "state-change", from: "CRITICAL", to: "WARNING" });
+      assert(harness.counters.stoppedSources >= stoppedBeforeCancel + 6, "Leaving critical range did not cancel navigation cues");
+
+      const oscillatorsBeforeTeleport = harness.counters.oscillators;
+      const buffersBeforeTeleport = harness.counters.bufferSources;
+      music.handleNavigationEvent({ type: "forced-reset", reason: "countdown" });
+      assert(harness.counters.oscillators === oscillatorsBeforeTeleport + 2, "Teleport cue did not schedule both tone sweeps");
+      assert(harness.counters.bufferSources === buffersBeforeTeleport + 1, "Teleport cue did not schedule its noise sweep");
+
+      await music.setEnabled(false);
+      const sourcesAfterDisable = harness.counters.oscillators + harness.counters.bufferSources;
+      music.handleNavigationEvent({ type: "countdown-tick", secondsRemaining: 4 });
+      assert(harness.counters.oscillators + harness.counters.bufferSources === sourcesAfterDisable, "Disabled SOUND still scheduled a cue");
+    } finally {
+      await music.destroy();
     }
   }
 
@@ -191,6 +329,7 @@
     }
     await runCase({ name: "engine lifecycle stops RAF and telemetry", run: runLifecycleCase });
     await runCase({ name: "engine hard boundary resets flight and input", run: runForcedNavigationResetCase });
+    await runCase({ name: "navigation audio stays lazy and schedules procedural cues", run: runNavigationAudioCase });
     await runCase({ name: "navigation warnings remain accessible with reduced motion", run: runNavigationUiCase });
     const summary = root.document.getElementById("test-summary");
     summary.textContent = `${passed} passed, ${failed} failed`;

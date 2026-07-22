@@ -19,6 +19,8 @@
     return {
       setEnabled() { return Promise.resolve(false); },
       getState() { return { available: false, enabled: false }; },
+      handleNavigationEvent() {},
+      stopNavigationCues() {},
       destroy() { return Promise.resolve(); }
     };
   }
@@ -62,7 +64,20 @@
 
     function reportNavigationEvent(event) {
       try {
+        if (typeof music.handleNavigationEvent === "function") music.handleNavigationEvent(event);
+      } catch (error) {
+        reportError(error);
+      }
+      try {
         onNavigationEvent(event);
+      } catch (error) {
+        reportError(error);
+      }
+    }
+
+    function stopNavigationAudioCues() {
+      try {
+        if (typeof music.stopNavigationCues === "function") music.stopNavigationCues();
       } catch (error) {
         reportError(error);
       }
@@ -129,6 +144,7 @@
       flight.update(deltaTime);
 
       let flightSnapshot = flight.getSnapshot();
+      const previousNavigationState = navigationSnapshot.state;
       const navigationResult = navigation.update(flightSnapshot.camera, deltaTime);
       navigationSnapshot = navigationResult.snapshot;
       let navigationReset = false;
@@ -141,6 +157,17 @@
         reportNavigationEvent({
           type: "forced-reset",
           reason: navigationResult.forcedResetReason
+        });
+      } else {
+        if (navigationResult.stateChanged) {
+          reportNavigationEvent({
+            type: "state-change",
+            from: previousNavigationState,
+            to: navigationSnapshot.state
+          });
+        }
+        navigationResult.countdownTicks.forEach(secondsRemaining => {
+          reportNavigationEvent({ type: "countdown-tick", secondsRemaining });
         });
       }
 
@@ -172,6 +199,7 @@
 
     function resetCamera() {
       assertAlive();
+      stopNavigationAudioCues();
       flight.clearControls();
       flight.reset();
       navigationSnapshot = navigation.reset(flight.getSnapshot().camera);
@@ -180,6 +208,7 @@
 
     function regenerateCity() {
       assertAlive();
+      stopNavigationAudioCues();
       const seed = (Date.now() ^ Math.floor(Math.random() * 0xffffffff)) >>> 0;
       installCity(Noseview.city.generateCity(seed));
       flight.clearControls();

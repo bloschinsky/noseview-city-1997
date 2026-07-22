@@ -44,7 +44,7 @@ All production scripts are IIFEs loaded together at the end of `index.html`, wit
 - Keep navigation boundaries radial and deterministic. Default distances are warning `90`, critical `120`, and forced reset `150`, with a five-second critical countdown.
 - Navigation warnings and signal degradation must remain visible when the optional HUD and Analog Vision are disabled.
 - The digital-rain sky uses a separate shader/program. After its pass, restore the main program, depth test, blending, and vertex attributes.
-- Create audio lazily after user interaction to satisfy browser autoplay rules.
+- Create audio lazily after user interaction to satisfy browser autoplay rules. Navigation cues share that context, react only to navigation events, and must not run independent countdown timers.
 - Preserve keyboard, pointer, responsive, focus-management, and `prefers-reduced-motion` behavior.
 - Keep source files UTF-8 and avoid unrelated formatting changes.
 

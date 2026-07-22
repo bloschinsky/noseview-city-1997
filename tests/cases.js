@@ -196,6 +196,35 @@
         }
       },
       {
+        name: "navigation countdown ticks are deterministic and restart cleanly",
+        run() {
+          function collectTicks(step) {
+            const model = Noseview.navigation.createNavigationModel();
+            const ticks = model.update({ x: 125, z: 0 }, 0).countdownTicks.slice();
+            let result;
+            do {
+              result = model.update({ x: 125, z: 0 }, step);
+              ticks.push(...result.countdownTicks);
+            } while (!result.forcedResetReason);
+            return ticks;
+          }
+          assert(collectTicks(0.5).join(",") === "5,4,3,2,1", "Coarse frames changed the tick sequence");
+          assert(collectTicks(0.1).join(",") === "5,4,3,2,1", "Fine frames changed the tick sequence");
+
+          const navigation = Noseview.navigation.createNavigationModel();
+          let result = navigation.update({ x: 125, z: 0 }, 0);
+          assert(result.countdownTicks.join(",") === "5", "Critical entry did not emit tick 5");
+          result = navigation.update({ x: 125, z: 0 }, 0.25);
+          assert(result.countdownTicks.length === 0, "Countdown repeated a tick within the same second");
+          result = navigation.update({ x: 125, z: 0 }, 2.1);
+          assert(result.countdownTicks.join(",") === "4,3", "Skipped seconds were not emitted in order");
+          result = navigation.update({ x: 110, z: 0 }, 0);
+          assert(result.countdownTicks.length === 0, "Leaving critical range emitted a stale tick");
+          result = navigation.update({ x: 125, z: 0 }, 0);
+          assert(result.countdownTicks.join(",") === "5", "Re-entering critical range did not restart tick 5");
+        }
+      },
+      {
         name: "leaving critical range cancels the countdown",
         run() {
           const navigation = Noseview.navigation.createNavigationModel();

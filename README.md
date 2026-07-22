@@ -21,6 +21,7 @@ A retro-futuristic navigation terminal for exploring a procedurally generated 3D
 - Optional `ANALOG VISION` with scanlines, a sweeping beam, glow, and signal noise
 - Configurable green digital-rain background for the empty city space
 - Optional procedurally synthesized AdLib-style background music
+- Procedural retro attention, countdown, and automatic-return audio cues
 - Responsive keyboard and on-screen controls
 
 ## System Requirements
@@ -63,7 +64,7 @@ The browser floor is primarily set by CSS `aspect-ratio`: it arrived in [Chrome 
 
 ## Navigation Safety
 
-The camera remains at least `0.6` world units above the ground. Signal degradation begins 90 units from the world center, `OUT OF NAVIGATION AREA` and a five-second return countdown begin at 120 units, and crossing 150 units immediately restores the initial camera position. Returning below the critical boundary cancels the countdown.
+The camera remains at least `0.6` world units above the ground. Signal degradation begins 90 units from the world center, `OUT OF NAVIGATION AREA` and a five-second return countdown begin at 120 units, and crossing 150 units immediately restores the initial camera position. Returning below the critical boundary cancels the countdown. With `SOUND` enabled, these transitions use generated retro attention, timer, and teleport cues; no sample files are loaded.
 
 ## Run
 
