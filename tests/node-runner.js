@@ -7,6 +7,7 @@ require("../src/engine/math.js");
 require("../src/engine/city.js");
 require("../src/engine/flight.js");
 require("../src/engine/navigation.js");
+require("../src/engine/signal-hunt.js");
 require("../src/ui/hud.js");
 require("./cases.js");
 

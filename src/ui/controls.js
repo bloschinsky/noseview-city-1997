@@ -30,6 +30,8 @@
     const soundButton = documentRoot.getElementById("sound-button");
     const resetButton = documentRoot.getElementById("reset-button");
     const regenerateButton = documentRoot.getElementById("regen-button");
+    const missionStartButton = documentRoot.getElementById("mission-start-button");
+    const missionAbortButton = documentRoot.getElementById("mission-abort-button");
     const cleanups = [];
     const activeControls = {};
     const heldKeys = new Set();
@@ -86,6 +88,18 @@
       soundButton.textContent = soundAvailable ? `SOUND: ${soundEnabled ? "ON" : "OFF"}` : "SOUND: N/A";
     }
 
+    function updateMissionButtons(snapshot) {
+      const mission = snapshot.mission || { mode: "IDLE" };
+      const mode = mission.mode || "IDLE";
+      const active = mode === "ACTIVE";
+      const ended = mode === "SUCCESS" || mode === "FAILED" || mode === "ABORTED";
+      if (missionStartButton) {
+        missionStartButton.disabled = active;
+        missionStartButton.textContent = ended ? "REPLAY MISSION" : "START SIGNAL HUNT";
+      }
+      if (missionAbortButton) missionAbortButton.disabled = !active;
+    }
+
     function updateTelemetry(snapshot) {
       if (destroyed) return;
       hudEnabled = snapshot.effects.hud;
@@ -98,6 +112,7 @@
       updateToggleButton(rainButton, "DIGITAL RAIN", rainEnabled);
       updateSoundButton();
       speedButton.textContent = `SPEED: ${snapshot.speed.name}`;
+      updateMissionButtons(snapshot);
     }
 
     documentRoot.querySelectorAll("[data-action]").forEach(button => {
@@ -204,6 +219,14 @@
     listen(regenerateButton, "click", () => {
       clearInputs();
       engine.regenerateCity();
+    });
+    if (missionStartButton) listen(missionStartButton, "click", () => {
+      clearInputs();
+      engine.startSignalHunt();
+    });
+    if (missionAbortButton) listen(missionAbortButton, "click", () => {
+      clearInputs();
+      engine.abortSignalHunt();
     });
     listen(speedButton, "click", () => {
       const speed = engine.cycleSpeed();

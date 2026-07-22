@@ -501,6 +501,147 @@
           assert(result.blocked === true, "Collision with ground was not detected");
           assertNear(flight.getSnapshot().camera.y, 0.6, Number.EPSILON, "Camera went below ground level");
         }
+      },
+      {
+        name: "signal hunt determinism and seed normalization",
+        run() {
+          const city = Noseview.city.generateCity(19810001);
+          const m1 = Noseview.signalHunt.createSignalHuntModel({ targetCount: 5 });
+          const m2 = Noseview.signalHunt.createSignalHuntModel({ targetCount: 5 });
+          m1.start(city, 1234);
+          m2.start(city, 1234);
+          const a = m1.getActiveTarget();
+          const b = m2.getActiveTarget();
+          assert(a && b && a.x === b.x && a.y === b.y && a.z === b.z, "Same city+seed produced different first target");
+          const snap = m1.getSnapshot();
+          assert((snap.missionSeed >>> 0) === (1234 >>> 0), "Mission seed was not normalized / stored in snapshot");
+        }
+      },
+      {
+        name: "aborting signal hunt clears targets and replay rebuilds them for a new city",
+        run() {
+          const firstCity = Noseview.city.generateCity(19810001);
+          const secondCity = Noseview.city.generateCity(19810002);
+          const model = Noseview.signalHunt.createSignalHuntModel({ targetCount: 5 });
+          model.start(firstCity, 1234);
+          assert(model.getActiveTarget(), "Signal Hunt did not create an initial target");
+          model.abort();
+          const aborted = model.getSnapshot();
+          assert(aborted.mode === "ABORTED", "Abort did not end the mission");
+          assert(aborted.totalTargets === 0 && aborted.acquiredTargets === 0, "Abort retained mission target counts");
+          assert(aborted.activeTargetId === null && model.getActiveTarget() === null, "Abort retained an active target");
+          model.replay(secondCity);
+          const replayed = model.getSnapshot();
+          const target = model.getActiveTarget();
+          const belongsToSecondCity = target && secondCity.structures.some(structure => {
+            const anchor = structure.signalAnchor;
+            return anchor && anchor.x === target.x && anchor.y === target.y && anchor.z === target.z;
+          });
+          assert(replayed.mode === "ACTIVE", "Replay with a new city did not restart the mission");
+          assert(replayed.totalTargets === 5 && replayed.acquiredTargets === 0, "Replay did not reset target progress");
+          assert(belongsToSecondCity, "Replay did not create targets from the new city");
+        }
+      },
+      {
+        name: "signal hunt locks a target only after two seconds in cone",
+        run() {
+          const city = Noseview.city.generateCity(19810001);
+          const model = Noseview.signalHunt.createSignalHuntModel({ scanConeDegrees: 8, scanMinDistance: 0, scanMaxDistance: 200 });
+          model.start(city, 555);
+          const t = model.getActiveTarget();
+          function yawTo(dx, dz) { return Math.atan2(dx, -dz); }
+          function pitchTo(dx, dy, dz) { return Math.atan2(dy, Math.hypot(dx, dz)); }
+          // Place camera 10 units east of target, level with it, facing it
+          const cam = { x: t.x + 10, y: t.y, z: t.z, yaw: yawTo(-10, 0), pitch: pitchTo(-10, 0, 0) };
+          model.update(cam, 1.99);
+          let snapshot = model.getSnapshot();
+          assert(snapshot.acquiredTargets === 0, "Valid aim acquired before two seconds");
+          assertNear(snapshot.lock.progress, 0.04, 0.000001, "Lock progress did not use bounded frame time");
+          model.update(cam, 0.01);
+          snapshot = model.getSnapshot();
+          assert(snapshot.acquiredTargets === 0, "A clamped frame incorrectly completed the lock");
+          for (let i = 0; i < 24; i += 1) model.update(cam, 0.08);
+          assert(model.getSnapshot().acquiredTargets === 1, "Valid aim did not acquire after two seconds");
+
+          model.restartAttempt();
+          const outsideCone = { ...cam, yaw: cam.yaw + (12 * Math.PI / 180) };
+          model.update(outsideCone, 2);
+          snapshot = model.getSnapshot();
+          assert(snapshot.acquiredTargets === 0, "Invalid aim acquired the target");
+          assert(snapshot.lock.progress === 0, "Invalid aim left stale lock progress");
+        }
+      },
+      {
+        name: "timer expiration fails and replay restarts the mission",
+        run() {
+          const city = Noseview.city.generateCity(19810001);
+          const model = Noseview.signalHunt.createSignalHuntModel({ timerSeconds: 0.5, scanMinDistance: 0, scanMaxDistance: 200 });
+          model.start(city, 42);
+          const target = model.getActiveTarget();
+          const camera = {
+            x: 0,
+            y: 0,
+            z: 0,
+            yaw: Math.atan2(target.x, -target.z),
+            pitch: Math.atan2(target.y, Math.hypot(target.x, target.z))
+          };
+          for (let i = 0; i < 8; i += 1) {
+            model.update(camera, 0.08);
+          }
+          const failed = model.getSnapshot();
+          assert(failed.mode === "FAILED", "Timer expiration did not fail the mission");
+          assert(!failed.lock.active && failed.lock.progress === 0, "Timer expiration left stale lock telemetry");
+          model.replay();
+          const replayed = model.getSnapshot();
+          assert(replayed.mode === "ACTIVE", "Replay did not restart the mission");
+        }
+      },
+      {
+        name: "last lock completes the mission with immutable statistics",
+        run() {
+          const city = Noseview.city.generateCity(19810001);
+          const model = Noseview.signalHunt.createSignalHuntModel({ targetCount: 1, scanMinDistance: 0, scanMaxDistance: 200 });
+          model.start(city, 9001);
+          model.drainEvents();
+          const target = model.getActiveTarget();
+          const camera = {
+            x: target.x + 10,
+            y: target.y,
+            z: target.z,
+            yaw: Math.atan2(-10, 0),
+            pitch: 0
+          };
+          for (let i = 0; i < 25; i += 1) model.update(camera, 0.08);
+          const snapshot = model.getSnapshot();
+          assert(snapshot.mode === "SUCCESS", "Final lock did not complete the mission");
+          assert(snapshot.activeTargetId === null, "Completed mission retained an active target");
+          assert(snapshot.completion.acquiredTargets === 1 && snapshot.completion.totalTargets === 1, "Completion counts were incorrect");
+          assert(snapshot.completion.elapsedSeconds > 0, "Completion time was not recorded");
+          const completeEvent = model.drainEvents().find(event => event.type === "mission-complete");
+          assert(completeEvent && completeEvent.acquiredTargets === 1 && completeEvent.totalTargets === 1, "Completion event lacked mission statistics");
+          const elapsed = snapshot.completion.elapsedSeconds;
+          model.update(camera, 1);
+          assert(model.getSnapshot().completion.elapsedSeconds === elapsed, "Completion statistics changed after success");
+        }
+      },
+      {
+        name: "reset attempt during active mission restarts progress",
+        run() {
+          const city = Noseview.city.generateCity(19810001);
+          const model = Noseview.signalHunt.createSignalHuntModel({});
+          model.start(city, 77);
+          const first = model.getSnapshot().activeTargetId;
+          const t = model.getActiveTarget();
+          const yaw = Math.atan2(t.x - (t.x + 10), -(t.z - t.z));
+          const cam = { x: t.x + 10, y: t.y, z: t.z, yaw, pitch: 0 };
+          model.update(cam, 0.08);
+          assert(model.getSnapshot().lock.progress > 0, "Valid aim did not begin lock progress");
+          model.restartAttempt();
+          const restarted = model.getSnapshot();
+          assert(restarted.acquiredTargets === 0, "Restart did not clear acquired count");
+          assert(restarted.activeTargetId === first, "Restart changed the first active target");
+          assert(restarted.lock.progress === 0, "Restart left stale lock progress");
+        }
       }
     ];
   }

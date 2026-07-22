@@ -262,7 +262,53 @@
     }
   }
 
-  function runNavigationUiCase() {
+  async function runMissionAudioCase() {
+    const canvas = root.document.createElement("canvas");
+    canvas.width = 64;
+    canvas.height = 64;
+    canvas.className = "test-canvas";
+    root.document.body.appendChild(canvas);
+    const audioEvents = [];
+    const telemetry = [];
+    const music = {
+      setEnabled(value) { return Promise.resolve(Boolean(value)); },
+      getState() { return { available: true, enabled: false }; },
+      handleNavigationEvent() {},
+      handleMissionEvent(event) { audioEvents.push(event && event.type); },
+      stopNavigationCues() {},
+      destroy() { return Promise.resolve(); }
+    };
+    const engine = Noseview.createNoseviewEngine(canvas, { music, onTelemetry(snapshot) { telemetry.push(snapshot); } });
+    try {
+      assert(typeof engine.scanSignal === "undefined", "Manual scan API is still exposed");
+      engine.start();
+      engine.startSignalHunt();
+      await delay(30);
+      assert(audioEvents.includes("mission-started"), "Mission start did not reach audio");
+      engine.resetCamera();
+      await delay(10);
+      assert(audioEvents.includes("mission-restarted"), "Mission restart did not reach audio");
+      engine.regenerateCity();
+      await delay(30);
+      const regenerated = telemetry[telemetry.length - 1];
+      assert(audioEvents.includes("mission-aborted"), "City generation did not abort the active mission");
+      assert(audioEvents.filter(type => type === "mission-restarted").length >= 2, "City generation did not replay the active mission");
+      assert(regenerated && regenerated.mission.mode === "ACTIVE", "City generation did not leave a new active mission");
+      assert(regenerated.mission.activeTargetId !== null && regenerated.mission.acquiredTargets === 0, "Replayed mission did not create fresh target state");
+      const restartCount = audioEvents.filter(type => type === "mission-restarted").length;
+      engine.abortSignalHunt();
+      engine.regenerateCity();
+      await delay(30);
+      const inactiveRegenerated = telemetry[telemetry.length - 1];
+      assert(inactiveRegenerated && inactiveRegenerated.mission.mode === "ABORTED", "Inactive mission was unexpectedly restarted during city generation");
+      assert(audioEvents.filter(type => type === "mission-restarted").length === restartCount, "Inactive city generation emitted a mission restart");
+    } finally {
+      await engine.destroy();
+      canvas.remove();
+    }
+  }
+
+  async function runNavigationUiCase() {
     const fixture = root.document.createElement("div");
     fixture.innerHTML = `
       <div class="test-navigation-wrap">
@@ -270,6 +316,10 @@
         <span id="heading"></span><span id="pitch"></span><span id="speed"></span>
         <span id="fps"></span><span id="building-count"></span>
         <span id="hud-alt"></span><span id="hud-hdg"></span>
+        <span id="mission-mode"></span><span id="mission-timer"></span>
+        <span id="mission-progress"></span><span id="mission-lock"></span>
+        <div id="mission-lock-frame" hidden></div>
+        <div id="mission-complete" hidden><strong id="mission-complete-title"></strong><span id="mission-complete-stats"></span></div>
         <canvas id="navigation-noise-canvas" width="32" height="24"></canvas>
         <div id="navigation-alert" hidden><strong id="navigation-message"></strong><span id="navigation-countdown" hidden></span></div>
         <span id="navigation-status" class="blink">ONLINE</span>
@@ -291,11 +341,22 @@
       speed: { name: "NORMAL", move: 10 },
       effects: { hud: false, analogVision: false, digitalRain: false },
       sound: { available: true, enabled: false },
-      navigation: { state: "WARNING", distance: 90, degradation: 0, countdownSeconds: null }
+      navigation: { state: "WARNING", distance: 90, degradation: 0, countdownSeconds: null },
+      mission: {
+        mode: "ACTIVE",
+        timeRemaining: 120,
+        totalTargets: 5,
+        acquiredTargets: 2,
+        lock: { active: true, progress: 0.5 },
+        completion: null
+      }
     };
     try {
       hud.update(snapshot);
       signal.update(snapshot.navigation);
+      assert(fixture.querySelector("#mission-lock").textContent === "50%", "Lock progress formatting changed");
+      assert(!fixture.querySelector("#mission-lock-frame").hidden, "Valid lock frame was hidden");
+      assert(fixture.querySelector("#mission-lock-frame").style.getPropertyValue("--lock-width") === "48px", "Lock frame did not shrink with progress");
       assert(!fixture.querySelector("#navigation-alert").hidden, "Warning text was hidden with HUD off");
       assert(fixture.querySelector("#navigation-message").textContent === "NAVIGATION LIMIT", "Warning label changed");
       assert(!fixture.querySelector("#navigation-status").classList.contains("blink"), "Warning status still blinks");
@@ -312,8 +373,27 @@
       assert(fixture.querySelector("canvas").toDataURL() === staticFrame, "Reduced-motion noise frame animated");
 
       snapshot.navigation = { state: "SAFE", distance: 58, degradation: 0, countdownSeconds: null };
+      snapshot.mission = {
+        mode: "SUCCESS",
+        timeRemaining: 116.4,
+        totalTargets: 5,
+        acquiredTargets: 5,
+        lock: { active: false, progress: 0 },
+        completion: { acquiredTargets: 5, totalTargets: 5, elapsedSeconds: 12.3 }
+      };
       hud.update(snapshot);
       signal.update(snapshot.navigation);
+      assert(fixture.querySelector("#mission-lock-frame").hidden, "Lock frame remained visible outside acquisition");
+      assert(fixture.querySelector("#mission-lock").textContent === "--", "Inactive lock did not clear its telemetry");
+      assert(!fixture.querySelector("#mission-complete").hidden, "Completion overlay was hidden");
+      assert(fixture.querySelector("#mission-complete-stats").textContent === "TARGETS: 5/5 // TIME: 12.3 SEC", "Completion summary format changed");
+      await delay(100);
+      assert(!fixture.querySelector("#mission-complete").hidden, "Completion overlay disappeared before movement");
+      snapshot.position.x = 90.1;
+      hud.update(snapshot);
+      assert(!fixture.querySelector("#mission-complete").hidden, "Completion overlay disappeared at movement start");
+      await delay(5100);
+      assert(fixture.querySelector("#mission-complete").hidden, "Completion overlay did not disappear after five seconds of movement");
       assert(fixture.querySelector("#navigation-alert").hidden, "Safe state left warning text visible");
       assert(!container.classList.contains("navigation-degraded"), "Safe state left noise enabled");
     } finally {
@@ -331,6 +411,7 @@
     await runCase({ name: "engine hard boundary resets flight and input", run: runForcedNavigationResetCase });
     await runCase({ name: "navigation audio stays lazy and schedules procedural cues", run: runNavigationAudioCase });
     await runCase({ name: "navigation warnings remain accessible with reduced motion", run: runNavigationUiCase });
+    await runCase({ name: "mission events reach audio", run: runMissionAudioCase });
     const summary = root.document.getElementById("test-summary");
     summary.textContent = `${passed} passed, ${failed} failed`;
     summary.className = failed === 0 ? "pass" : "fail";

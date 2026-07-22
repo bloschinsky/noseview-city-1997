@@ -400,6 +400,44 @@
       return enabled && !destroyed && audioContext && audioContext.state === "running";
     }
 
+    function scheduleMissionStartCue() {
+      if (!canPlayNavigationCue()) return;
+      const now = audioContext.currentTime + 0.02;
+      duckMusic(now, 0.5);
+      scheduleNavigationTone(760, now, 0.10, 0.22, "square");
+      scheduleNavigationTone(980, now + 0.14, 0.12, 0.24, "square");
+    }
+
+    function scheduleAcquireCue() {
+      if (!canPlayNavigationCue()) return;
+      const now = audioContext.currentTime + 0.015;
+      scheduleNavigationTone(1200, now, 0.08, 0.26, "square");
+      scheduleNavigationTone(1450, now + 0.09, 0.07, 0.22, "square");
+    }
+
+    function scheduleCompleteCue() {
+      if (!canPlayNavigationCue()) return;
+      const now = audioContext.currentTime + 0.015;
+      duckMusic(now, 0.9);
+      scheduleNavigationTone(880, now, 0.11, 0.26, "triangle");
+      scheduleNavigationTone(1175, now + 0.12, 0.12, 0.28, "triangle");
+      scheduleNavigationTone(1480, now + 0.26, 0.14, 0.30, "triangle");
+    }
+
+    function scheduleFailedCue() {
+      if (!canPlayNavigationCue()) return;
+      const now = audioContext.currentTime + 0.01;
+      duckMusic(now, 0.5);
+      scheduleNavigationTone(620, now, 0.1, 0.22, "sawtooth");
+      scheduleNavigationTone(420, now + 0.12, 0.14, 0.20, "sawtooth");
+    }
+
+    function scheduleAbortCue() {
+      if (!canPlayNavigationCue()) return;
+      const now = audioContext.currentTime + 0.01;
+      scheduleNavigationTone(520, now, 0.08, 0.2, "square");
+    }
+
     function handleNavigationEvent(event) {
       if (!event || typeof event.type !== "string") return;
       if (event.type === "forced-reset") {
@@ -420,6 +458,31 @@
           Number.isInteger(event.secondsRemaining) &&
           canPlayNavigationCue()) {
         scheduleCountdownCue(event.secondsRemaining);
+      }
+    }
+
+    function handleMissionEvent(event) {
+      if (!event || typeof event.type !== "string") return;
+      if (!enabled) return;
+      switch (event.type) {
+        case "mission-started":
+          scheduleMissionStartCue();
+          break;
+        case "target-acquired":
+          scheduleAcquireCue();
+          break;
+        case "mission-complete":
+          scheduleCompleteCue();
+          break;
+        case "mission-failed":
+          scheduleFailedCue();
+          break;
+        case "mission-aborted":
+        case "mission-restarted":
+          scheduleAbortCue();
+          break;
+        default:
+          break;
       }
     }
 
@@ -526,7 +589,7 @@
       if (canPlayNavigationCue()) scheduleCollisionCue();
     }
 
-    return { setEnabled, getState, handleNavigationEvent, playCollisionCue, stopNavigationCues, destroy };
+    return { setEnabled, getState, handleNavigationEvent, handleMissionEvent, playCollisionCue, stopNavigationCues, destroy };
   }
 
   Noseview.audio.createMusic = createMusic;

@@ -82,6 +82,7 @@
       landmarkEdges: null,
       landmarkAccents: null
     };
+    const missionMarkerBuffer = gl.createBuffer();
 
     function compileShader(type, source) {
       const shader = gl.createShader(type);
@@ -303,6 +304,38 @@
       gl.drawArrays(primitive, 0, geometry.count);
     }
 
+    function drawMissionWaves(target, time) {
+      if (!target || !missionMarkerBuffer) return;
+      const segmentCount = 32;
+      const waveCount = 4;
+      const innerRadius = 0.35;
+      const outerRadius = 4.5;
+      const phase = ((time * 0.00065) % 1 + 1) % 1;
+
+      gl.bindBuffer(gl.ARRAY_BUFFER, missionMarkerBuffer);
+      gl.vertexAttribPointer(locations.position, 3, gl.FLOAT, false, 0, 0);
+      for (let wave = 0; wave < waveCount; wave += 1) {
+        const wavePhase = (phase + wave / waveCount) % 1;
+        const radius = innerRadius + wavePhase * (outerRadius - innerRadius);
+        const alpha = 0.9 * (1 - wavePhase);
+        const data = new Float32Array(segmentCount * 2 * 3);
+        for (let segment = 0; segment < segmentCount; segment += 1) {
+          const startAngle = (segment / segmentCount) * Math.PI * 2;
+          const endAngle = ((segment + 1) / segmentCount) * Math.PI * 2;
+          const offset = segment * 6;
+          data[offset] = target.x + Math.cos(startAngle) * radius;
+          data[offset + 1] = target.y;
+          data[offset + 2] = target.z + Math.sin(startAngle) * radius;
+          data[offset + 3] = target.x + Math.cos(endAngle) * radius;
+          data[offset + 4] = target.y;
+          data[offset + 5] = target.z + Math.sin(endAngle) * radius;
+        }
+        gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
+        gl.uniform4fv(locations.color, [0.25, 0.9, 1.0, alpha]);
+        gl.drawArrays(gl.LINES, 0, segmentCount * 2);
+      }
+    }
+
     function drawSky(view) {
       gl.disable(gl.DEPTH_TEST);
       gl.disable(gl.BLEND);
@@ -371,6 +404,11 @@
         gl.LINES,
         frameState.analogVisionEnabled ? [1.0, 0.75, 0.2, 1] : [0.55, 0.96, 1.0, 1]
       );
+
+      // Mission target waves (subtle and lightweight)
+      if (frameState && frameState.missionTarget) {
+        drawMissionWaves(frameState.missionTarget, frameState.time || 0);
+      }
     }
 
     function handleContextLost(event) {
@@ -394,6 +432,7 @@
       deleteGeometry(gridLines);
       deleteGeometry(roadLines);
       deleteGeometry(skyGeometry);
+      if (missionMarkerBuffer) gl.deleteBuffer(missionMarkerBuffer);
       gl.deleteTexture(skyTexture);
       gl.deleteProgram(program);
       gl.deleteProgram(skyProgram);

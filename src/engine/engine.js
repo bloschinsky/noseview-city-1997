@@ -20,6 +20,7 @@
       setEnabled() { return Promise.resolve(false); },
       getState() { return { available: false, enabled: false }; },
       handleNavigationEvent() {},
+      handleMissionEvent() {},
       playCollisionCue() {},
       stopNavigationCues() {},
       destroy() { return Promise.resolve(); }
@@ -38,6 +39,34 @@
     const onError = typeof settings.onError === "function" ? settings.onError : function () {};
     const flight = Noseview.flight.createFlightModel();
     const navigation = Noseview.navigation.createNavigationModel(settings.navigation);
+    function createNoopMission() {
+      const idle = {
+        mode: "IDLE",
+        missionSeed: null,
+        totalTargets: 0,
+        acquiredTargets: 0,
+        activeTargetId: null,
+        timeRemaining: null,
+        scan: { inCone: false, distance: null, intensity: 0, alignment: 0 },
+        lock: { active: false, elapsedSeconds: 0, durationSeconds: 2, progress: 0 },
+        completion: null,
+        guidance: { bearingDeltaDegrees: null, elevationDeltaDegrees: null }
+      };
+      return {
+        start() { return idle; },
+        abort() { return idle; },
+        restartAttempt() { return idle; },
+        replay() { return idle; },
+        update() { return idle; },
+        getSnapshot() { return { ...idle }; },
+        drainEvents() { return []; },
+        isActive() { return false; },
+        destroy() {}
+      };
+    }
+    const mission = (Noseview.signalHunt && typeof Noseview.signalHunt.createSignalHuntModel === "function")
+      ? Noseview.signalHunt.createSignalHuntModel(settings.signalHunt)
+      : createNoopMission();
     let renderer;
     let running = false;
     let destroyed = false;
@@ -73,6 +102,19 @@
       }
       try {
         onNavigationEvent(event);
+      } catch (error) {
+        reportError(error);
+      }
+    }
+
+    function reportMissionEvent(event) {
+      try {
+        if (typeof music.handleMissionEvent === "function") music.handleMissionEvent(event);
+      } catch (error) {
+        reportError(error);
+      }
+      try {
+        onMissionEvent(event);
       } catch (error) {
         reportError(error);
       }
@@ -129,7 +171,8 @@
         speed: { ...snapshot.speed },
         effects: { ...effects },
         sound: { available: Boolean(sound.available), enabled: Boolean(sound.enabled) },
-        navigation: { ...navigationSnapshot }
+        navigation: { ...navigationSnapshot },
+        mission: mission.getSnapshot()
       };
     }
 
@@ -190,15 +233,28 @@
         if (rainCanvas) renderer.updateSkyTexture(rainCanvas);
       }
 
+      // Mission update, target and events
+      let missionTarget = null;
+      try {
+        mission.update(flightSnapshot.camera, deltaTime);
+        missionTarget = typeof mission.getActiveTarget === "function" ? mission.getActiveTarget() : null;
+        const missionEvents = mission.drainEvents();
+        missionEvents.forEach(reportMissionEvent);
+      } catch (error) {
+        reportError(error);
+      }
+
       renderer.render(flightSnapshot.camera, {
         time,
         analogVisionEnabled: effects.analogVision,
-        digitalRainEnabled: effects.digitalRain
+        digitalRainEnabled: effects.digitalRain,
+        missionTarget
       });
       if (effects.analogVision) analogVision.update(time, deltaTime, canvas);
 
       smoothedFps += ((1 / Math.max(deltaTime, 0.001)) - smoothedFps) * 0.08;
-      emitTelemetry(time, navigationResult.stateChanged || navigationReset);
+
+      emitTelemetry(time, navigationResult.stateChanged || navigationReset || false);
       animationFrame = root.requestAnimationFrame(render);
     }
 
@@ -214,6 +270,15 @@
     function resetCamera() {
       assertAlive();
       stopNavigationAudioCues();
+      // Reset mission attempt if active per policy
+      try {
+        if (typeof mission.isActive === "function" && mission.isActive()) {
+          mission.restartAttempt();
+          mission.drainEvents().forEach(reportMissionEvent);
+        }
+      } catch (error) {
+        reportError(error);
+      }
       flight.clearControls();
       flight.reset();
       navigationSnapshot = navigation.reset(flight.getSnapshot().camera);
@@ -223,8 +288,26 @@
     function regenerateCity() {
       assertAlive();
       const seed = (Date.now() ^ Math.floor(Math.random() * 0xffffffff)) >>> 0;
+      let replayMission = false;
+      try {
+        replayMission = typeof mission.isActive === "function" && mission.isActive();
+        if (replayMission) {
+          mission.abort();
+          mission.drainEvents().forEach(reportMissionEvent);
+        }
+      } catch (error) {
+        reportError(error);
+      }
       installCity(Noseview.city.generateCity(seed));
       navigationSnapshot = navigation.reset(flight.getSnapshot().camera);
+      if (replayMission) {
+        try {
+          mission.replay(city);
+          mission.drainEvents().forEach(reportMissionEvent);
+        } catch (error) {
+          reportError(error);
+        }
+      }
       emitTelemetry(root.performance.now(), true);
     }
 
@@ -276,10 +359,46 @@
       analogVision.destroy();
       digitalRain.destroy();
       await music.destroy();
+      try { if (typeof mission.destroy === "function") mission.destroy(); } catch (_error) {}
       renderer.destroy();
     }
 
-    void onMissionEvent;
+    function startSignalHunt(seed) {
+      assertAlive();
+      if (!city) return mission.getSnapshot();
+      try {
+        mission.start(city, seed);
+        mission.drainEvents().forEach(reportMissionEvent);
+      } catch (error) {
+        reportError(error);
+      }
+      emitTelemetry(root.performance.now(), true);
+      return mission.getSnapshot();
+    }
+
+    function abortSignalHunt() {
+      assertAlive();
+      try {
+        mission.abort();
+        mission.drainEvents().forEach(reportMissionEvent);
+      } catch (error) {
+        reportError(error);
+      }
+      emitTelemetry(root.performance.now(), true);
+      return mission.getSnapshot();
+    }
+
+    function replaySignalHunt() {
+      assertAlive();
+      try {
+        mission.replay();
+        mission.drainEvents().forEach(reportMissionEvent);
+      } catch (error) {
+        reportError(error);
+      }
+      emitTelemetry(root.performance.now(), true);
+      return mission.getSnapshot();
+    }
     return {
       start,
       destroy,
@@ -288,7 +407,10 @@
       setControl,
       cycleSpeed,
       setEffect,
-      setSoundEnabled
+      setSoundEnabled,
+      startSignalHunt,
+      abortSignalHunt,
+      replaySignalHunt
     };
   }
 

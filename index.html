@@ -13,7 +13,7 @@
       <tr>
         <td>
           <h1 class="logo">NOSEVIEW 1997</h1>
-          <div class="subtitle">CITY NAVIGATION TERMINAL // REV. 1.5.5</div>
+          <div class="subtitle">CITY NAVIGATION TERMINAL // REV. 1.7.0</div>
           <div class="blink">● SYSTEM ONLINE ●</div>
         </td>
       </tr>
@@ -39,6 +39,10 @@
                 <div class="hud-alt" id="hud-alt">ALT. 10.00</div>
                 <div class="hud-hdg" id="hud-hdg">HDG. 000</div>
                 <div class="crosshair"></div>
+                <div id="mission-lock-frame" class="mission-lock-frame" hidden>
+                  <span class="lock-corner lock-tl"></span><span class="lock-corner lock-tr"></span>
+                  <span class="lock-corner lock-bl"></span><span class="lock-corner lock-br"></span>
+                </div>
                 <div class="corner c1"></div><div class="corner c2"></div>
                 <div class="corner c3"></div><div class="corner c4"></div>
               </div>
@@ -46,6 +50,10 @@
               <div id="navigation-alert" class="navigation-alert" role="status" aria-live="polite" aria-atomic="true" hidden>
                 <strong id="navigation-message"></strong>
                 <span id="navigation-countdown" aria-hidden="true" hidden></span>
+              </div>
+              <div id="mission-complete" class="mission-complete" role="status" aria-live="polite" aria-atomic="true" hidden>
+                <strong id="mission-complete-title">MISSION COMPLETE</strong>
+                <span id="mission-complete-stats"></span>
               </div>
               <div id="webgl-error">
                 *** SYSTEM FAILURE ***<br><br>
@@ -93,6 +101,20 @@
                 <div class="center">VIEW<br>PAD</div>
                 <button class="pad-button right" data-action="turnRight" aria-label="Turn right">▶<small>TURN R</small></button>
                 <button class="pad-button down" data-action="lookDown" aria-label="Look down">▼<small>LOOK DN</small></button>
+              </div>
+            </div>
+
+            <div class="control-panel">
+              <div class="panel-label">SIGNAL HUNT</div>
+              <div class="mission-buttons">
+                <button id="mission-start-button" class="wide">START SIGNAL HUNT</button>
+                <button id="mission-abort-button" class="wide">ABORT MISSION</button>
+              </div>
+              <div class="mission-status" aria-live="polite" aria-atomic="true" style="margin-top:6px; font: 11px 'Courier New', monospace;">
+                MODE: <span id="mission-mode">IDLE</span><br>
+                TIMER: <span id="mission-timer">--</span><br>
+                TARGETS: <span id="mission-progress">0/0</span><br>
+                LOCK: <span id="mission-lock">--</span>
               </div>
             </div>
 
@@ -157,6 +179,7 @@
   <script src="src/engine/flight.js"></script>
   <script src="src/engine/navigation.js"></script>
   <script src="src/engine/renderer.js"></script>
+  <script src="src/engine/signal-hunt.js"></script>
   <script src="src/effects/analog-vision.js"></script>
   <script src="src/effects/digital-rain.js"></script>
   <script src="src/effects/navigation-signal.js"></script>

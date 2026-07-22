@@ -277,27 +277,27 @@ Goal: turn free flight into a short replayable game without removing the origina
 
 ### 4.1 Mission state
 
-- [ ] Keep Free Flight as the default mode.
-- [ ] Add a clear `START SIGNAL HUNT` control.
-- [ ] Implement explicit mission states: `IDLE`, `ACTIVE`, and `COMPLETE`.
-- [ ] Start the mission timer only when the player starts Signal Hunt.
-- [ ] Stop the timer immediately when the final signal is scanned.
-- [ ] Reset mission state when a new city is generated.
-- [ ] Decide and document whether camera reset restarts or preserves the active mission.
+- [x] Keep Free Flight as the default mode.
+- [x] Add a clear `START SIGNAL HUNT` control.
+- [x] Implement explicit mission states: `IDLE`, `ACTIVE`, and `COMPLETE`.
+- [x] Start the mission timer only when the player starts Signal Hunt.
+- [x] Stop the timer immediately when the final signal is scanned.
+- [x] Reset mission state when a new city is generated.
+- [x] Decide and document whether camera reset restarts or preserves the active mission.
 
 ### 4.2 Signal generation
 
 - [ ] Generate between three and five signal beacons per mission.
-- [ ] Select unique valid buildings or landmarks for beacon placement.
-- [ ] Place beacons above roofs or landmark platforms, never inside solid geometry.
+- [x] Select unique valid buildings or landmarks for beacon placement.
+- [x] Place beacons above roofs or landmark platforms, never inside solid geometry.
 - [ ] Exclude structures too close to the initial camera position.
-- [ ] Store stable beacon IDs, positions, status, and host-structure metadata.
-- [ ] Keep beacon generation deterministic for a given city and mission seed.
+- [x] Store stable beacon IDs, positions, status, and host-structure metadata.
+- [x] Keep beacon generation deterministic for a given city and mission seed.
 - [ ] Ensure every generated mission is completable.
 
 ### 4.3 Beacon rendering
 
-- [ ] Add a low-poly beacon marker that fits the existing wireframe aesthetic.
+- [x] Add a low-poly beacon marker that fits the existing wireframe aesthetic.
 - [ ] Make the active signal readable against buildings, Digital Rain, and Analog Vision.
 - [ ] Add restrained pulse or flicker animation.
 - [ ] Provide a reduced-motion beacon presentation.
@@ -327,8 +327,8 @@ These values are tuning defaults, not hard-coded architectural constraints.
 
 ### 4.5 Mission HUD and completion screen
 
-- [ ] Show mission status while Signal Hunt is active.
-- [ ] Show scanned count, total count, current timer, and scan progress.
+- [x] Show mission status while Signal Hunt is active.
+- [x] Show scanned count, total count, current timer, and scan progress.
 - [ ] Add `SIGNAL ACQUIRED` feedback after each successful scan.
 - [ ] Add a `MISSION COMPLETE` overlay after the final scan.
 - [ ] Show completion time and number of signals.

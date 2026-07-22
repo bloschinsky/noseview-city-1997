@@ -12,6 +12,8 @@
     return String(Math.round(normalizeHeading(degrees))).padStart(3, "0");
   }
 
+  const COMPLETION_DISMISS_DELAY_MS = 5000;
+
   function createHud(documentRoot, canvasWrap) {
     const elements = {
       x: documentRoot.getElementById("pos-x"),
@@ -27,8 +29,20 @@
       navigationAlert: documentRoot.getElementById("navigation-alert"),
       navigationMessage: documentRoot.getElementById("navigation-message"),
       navigationCountdown: documentRoot.getElementById("navigation-countdown"),
-      navigationStatus: documentRoot.getElementById("navigation-status")
+      navigationStatus: documentRoot.getElementById("navigation-status"),
+      missionMode: documentRoot.getElementById("mission-mode"),
+      missionTimer: documentRoot.getElementById("mission-timer"),
+      missionProgress: documentRoot.getElementById("mission-progress"),
+      missionLock: documentRoot.getElementById("mission-lock"),
+      missionLockFrame: documentRoot.getElementById("mission-lock-frame"),
+      missionComplete: documentRoot.getElementById("mission-complete"),
+      missionCompleteTitle: documentRoot.getElementById("mission-complete-title"),
+      missionCompleteStats: documentRoot.getElementById("mission-complete-stats")
     };
+    let previousCamera = null;
+    let completionKey = null;
+    let completionDismissed = false;
+    let completionDismissTimer = null;
 
     const navigationLabels = {
       SAFE: "ONLINE",
@@ -54,6 +68,49 @@
       }
     }
 
+    function clearCompletionDismissTimer() {
+      if (completionDismissTimer !== null) {
+        documentRoot.defaultView.clearTimeout(completionDismissTimer);
+        completionDismissTimer = null;
+      }
+    }
+
+    function cameraChanged(previous, current) {
+      return Math.abs(previous.position.x - current.position.x) > 0.0001 ||
+        Math.abs(previous.position.y - current.position.y) > 0.0001 ||
+        Math.abs(previous.position.z - current.position.z) > 0.0001 ||
+        Math.abs(previous.headingDegrees - current.headingDegrees) > 0.0001 ||
+        Math.abs(previous.pitchDegrees - current.pitchDegrees) > 0.0001;
+    }
+
+    function updateMissionCompletion(completion, mission, snapshot) {
+      if (!completion) {
+        clearCompletionDismissTimer();
+        completionKey = null;
+        completionDismissed = false;
+        previousCamera = snapshot;
+        return;
+      }
+
+      const nextCompletionKey = `${completion.acquiredTargets}/${completion.totalTargets}/${completion.elapsedSeconds}`;
+      const isNewCompletion = nextCompletionKey !== completionKey;
+      if (isNewCompletion) {
+        clearCompletionDismissTimer();
+        completionKey = nextCompletionKey;
+        completionDismissed = false;
+      }
+
+      if (!isNewCompletion && !completionDismissed && completionDismissTimer === null &&
+          mission.mode === "SUCCESS" && previousCamera && cameraChanged(previousCamera, snapshot)) {
+        completionDismissTimer = documentRoot.defaultView.setTimeout(() => {
+          completionDismissed = true;
+          completionDismissTimer = null;
+          if (elements.missionComplete) elements.missionComplete.hidden = true;
+        }, COMPLETION_DISMISS_DELAY_MS);
+      }
+      previousCamera = snapshot;
+    }
+
     function update(snapshot) {
       const heading = formatHeading(snapshot.headingDegrees);
       elements.x.textContent = snapshot.position.x.toFixed(1);
@@ -67,15 +124,51 @@
       elements.hudAlt.textContent = `ALT. ${snapshot.position.y.toFixed(2)}`;
       elements.hudHeading.textContent = `HDG. ${heading}`;
       updateNavigation(snapshot.navigation);
+      // Mission status — plain text, stays readable without optional effects
+      const mission = snapshot.mission || {
+        mode: "IDLE",
+        timeRemaining: null,
+        totalTargets: 0,
+        acquiredTargets: 0,
+        lock: { active: false, progress: 0 }
+      };
+      if (elements.missionMode) elements.missionMode.textContent = mission.mode || "IDLE";
+      if (elements.missionProgress) elements.missionProgress.textContent = `${mission.acquiredTargets || 0}/${mission.totalTargets || 0}`;
+      if (elements.missionTimer) {
+        const t = mission.timeRemaining;
+        elements.missionTimer.textContent = (t === null || t === undefined) ? "--" : t.toFixed(1);
+      }
+      const lock = mission.lock || (mission.scan && mission.scan.lock) || { active: false, progress: 0 };
+      const lockProgress = clamp01(lock.progress);
+      if (elements.missionLock) {
+        elements.missionLock.textContent = lock.active ? `${Math.round(lockProgress * 100)}%` : "--";
+      }
+      if (elements.missionLockFrame) {
+        elements.missionLockFrame.hidden = !lock.active;
+        elements.missionLockFrame.style.setProperty("--lock-progress", String(lockProgress));
+        elements.missionLockFrame.style.setProperty("--lock-width", `${Math.max(8, 96 * (1 - lockProgress))}px`);
+        elements.missionLockFrame.style.setProperty("--lock-height", `${Math.max(8, 72 * (1 - lockProgress))}px`);
+      }
+      const completion = mission.completion;
+      updateMissionCompletion(completion, mission, snapshot);
+      if (elements.missionComplete) {
+        elements.missionComplete.hidden = !completion || completionDismissed;
+        if (completion && elements.missionCompleteTitle && elements.missionCompleteStats) {
+          elements.missionCompleteTitle.textContent = "MISSION COMPLETE";
+          elements.missionCompleteStats.textContent = `TARGETS: ${completion.acquiredTargets}/${completion.totalTargets} // TIME: ${completion.elapsedSeconds.toFixed(1)} SEC`;
+        }
+      }
       setVisible(snapshot.effects.hud);
     }
+
+    function clamp01(v) { return Math.max(0, Math.min(1, Number.isFinite(v) ? v : 0)); }
 
     function setVisible(enabled) {
       canvasWrap.classList.toggle("hud-hidden", !enabled);
     }
 
     function destroy() {
-      // HUD owns no listeners or timers.
+      clearCompletionDismissTimer();
     }
 
     return { update, setVisible, destroy };
