@@ -32,7 +32,7 @@ This document tracks confirmed bugs, their root causes, and the planned fixes.
 
 ---
 
-## BUG-002 — Navigation Limit bypassed by flying steeply upward `[P1]`
+## BUG-002 — Navigation Limit bypassed by flying steeply upward `[P1]` — Fixed in 1.5.3
 
 **Symptom:** When the player pitches the camera to a steep upward angle (near the 75° pitch clamp) and flies forward, the navigation boundary system never triggers warning or critical states, allowing the player to ascend indefinitely without a forced reset.
 
@@ -45,15 +45,19 @@ This document tracks confirmed bugs, their root causes, and the planned fixes.
 
 **Fix plan:**
 
-- [ ] Extend the navigation distance check to include the vertical axis. Options to evaluate:
+- [x] Extend the navigation distance check to include the vertical axis. Options to evaluate:
   - **Option A — 3D radial distance:** Change `calculateDistance` to `Math.hypot(x - centerX, y - centerY, z - centerZ)` with a configurable center altitude. This treats the boundary as a sphere around the city center.
-  - **Option B — Separate altitude cap:** Keep the XZ radial check and add an independent maximum altitude threshold. Crossing either boundary triggers the same warning/critical/reset sequence.
+  - **Option B — Separate altitude cap:** Keep the XZ radial check and add an independent maximum altitude threshold. Crossing either boundary triggers the same warning/critical/reset sequence. ← **selected**
   - **Option C — Cylindrical boundary with height cap:** Keep XZ radial logic but clamp or warn when Y exceeds a configured ceiling. The simplest change with the least risk to existing horizontal boundary behavior.
-- [ ] Choose an option that preserves the existing horizontal boundary distances (warning 90, critical 120, reset 150) and does not change behavior for players who stay at normal flight altitudes.
-- [ ] Add altitude values to the navigation configuration defaults.
-- [ ] Add tests for the vertical escape scenario: verify that flying straight up at maximum pitch eventually triggers WARNING → CRITICAL → forced reset.
-- [ ] Verify that normal rooftop-level flight does not produce false navigation warnings after the fix.
-- [ ] Update `README.md` if boundary description changes.
+- [x] Choose an option that preserves the existing horizontal boundary distances (warning 90, critical 120, reset 150) and does not change behavior for players who stay at normal flight altitudes.
+- [x] Add altitude values to the navigation configuration defaults.
+- [x] Add tests for the vertical escape scenario: verify that flying straight up at maximum pitch eventually triggers WARNING → CRITICAL → forced reset.
+- [x] Verify that normal rooftop-level flight does not produce false navigation warnings after the fix.
+- [x] Update `README.md` if boundary description changes.
+
+**Fix history:**
+
+- `1.5.3` — implemented Option B (separate altitude cap) in `src/engine/navigation.js`. Added `centerY` (default `10`, matching the player spawn altitude) and altitude thresholds `warningAltitude=90`, `criticalAltitude=120`, `resetAltitude=150` mirroring the radial ladder. `calculateState` and `calculateDegradation` now take both a radial distance and an absolute altitude excess (`|y - centerY|`) and pick the more severe axis; a `hard-limit` forced reset fires as soon as either axis reaches its reset threshold. `y` is optional in `navigation.update`/`reset` (falls back to `centerY`) so existing XZ-only tests keep passing. Added three new deterministic tests in `tests/cases.js` covering vertical ascent (SAFE → WARNING → CRITICAL → hard-limit at `y=160`), descent below the floor (`y=-145` forces reset), and custom altitude configuration + `RangeError` validation. Radial defaults (90 / 120 / 150 / 5s countdown) unchanged; rooftop-level flight at `y ≤ 60` stays SAFE.
 
 ---
 
@@ -62,4 +66,4 @@ This document tracks confirmed bugs, their root causes, and the planned fixes.
 | ID | Bug | Priority | Status |
 | --- | --- | --- | --- |
 | BUG-001 | Analog Vision makes all elements green | P1 | Fixed in 1.5.2 |
-| BUG-002 | Navigation Limit bypassed by steep vertical flight | P1 | Open |
+| BUG-002 | Navigation Limit bypassed by steep vertical flight | P1 | Fixed in 1.5.3 |

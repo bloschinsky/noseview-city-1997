@@ -333,6 +333,52 @@
           const safe = navigation.reset({ x: 7.5, z: 58 });
           assert(safe.state === "SAFE" && safe.countdownSeconds === null, "Navigation reset did not restore safe state");
         }
+      },
+      {
+        name: "vertical ascent trips warning, critical and hard limit",
+        run() {
+          const navigation = Noseview.navigation.createNavigationModel();
+          const rooftop = navigation.update({ x: 0, y: 60, z: 0 }, 0);
+          assert(rooftop.snapshot.state === "SAFE", "Rooftop-level altitude falsely triggered a warning");
+          const warning = navigation.update({ x: 0, y: 100, z: 0 }, 0);
+          assert(warning.snapshot.state === "WARNING", "Vertical ascent past warning altitude did not raise WARNING");
+          const critical = navigation.update({ x: 0, y: 130, z: 0 }, 0);
+          assert(critical.snapshot.state === "CRITICAL", "Vertical ascent past critical altitude did not raise CRITICAL");
+          assertNear(critical.snapshot.countdownSeconds, 5, 0.000001, "Vertical critical did not start the countdown");
+          const hardLimit = navigation.update({ x: 0, y: 160, z: 0 }, 0);
+          assert(hardLimit.forcedResetReason === "hard-limit", "Steep upward flight did not force a reset at the altitude ceiling");
+          assert(hardLimit.snapshot.degradation === 1, "Altitude hard-limit degradation did not reach one");
+        }
+      },
+      {
+        name: "vertical descent below floor also trips the navigation limit",
+        run() {
+          const navigation = Noseview.navigation.createNavigationModel();
+          const warning = navigation.update({ x: 0, y: -85, z: 0 }, 0);
+          assert(warning.snapshot.state === "WARNING", "Descent past warning altitude did not raise WARNING");
+          const hardLimit = navigation.update({ x: 0, y: -145, z: 0 }, 0);
+          assert(hardLimit.forcedResetReason === "hard-limit", "Descent below the altitude floor did not force a reset");
+        }
+      },
+      {
+        name: "altitude thresholds are configurable and validated",
+        run() {
+          const custom = Noseview.navigation.createNavigationModel({
+            centerY: 0,
+            warningAltitude: 20,
+            criticalAltitude: 40,
+            resetAltitude: 60
+          });
+          assert(custom.update({ x: 0, y: 25, z: 0 }, 0).snapshot.state === "WARNING", "Custom altitude warning threshold ignored");
+          assert(custom.update({ x: 0, y: 45, z: 0 }, 0).snapshot.state === "CRITICAL", "Custom altitude critical threshold ignored");
+          let threw = false;
+          try {
+            Noseview.navigation.createNavigationModel({ warningAltitude: 50, criticalAltitude: 40, resetAltitude: 30 });
+          } catch (error) {
+            threw = error instanceof RangeError;
+          }
+          assert(threw, "Invalid altitude configuration did not raise RangeError");
+        }
       }
     ];
   }

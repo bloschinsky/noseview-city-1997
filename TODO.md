@@ -16,7 +16,7 @@ This file is the lightweight entry point for NOSEVIEW 1997 planning. Detailed mi
 | ID | Tracker | Bug | Priority | Status |
 | --- | --- | --- | --- | --- |
 | BUG-001 | [Bugfixes](context/roadmap/bugfixes.md) | Analog Vision turns all visual elements green | P1 | Fixed in 1.5.2 |
-| BUG-002 | [Bugfixes](context/roadmap/bugfixes.md) | Navigation Limit bypassed by steep vertical flight | P1 | Open |
+| BUG-002 | [Bugfixes](context/roadmap/bugfixes.md) | Navigation Limit bypassed by steep vertical flight | P1 | Fixed in 1.5.3 |
 
 Shared constraints, deferred ideas, the global Definition of Done, required checks, and the recommended delivery sequence live in [Shared Roadmap Context](context/roadmap/shared.md).
 

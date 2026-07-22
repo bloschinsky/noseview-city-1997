@@ -12,9 +12,13 @@
   const DEFAULT_CONFIG = Object.freeze({
     centerX: 0,
     centerZ: 0,
+    centerY: 10,
     warningDistance: 90,
     criticalDistance: 120,
     resetDistance: 150,
+    warningAltitude: 90,
+    criticalAltitude: 120,
+    resetAltitude: 150,
     countdownSeconds: 5
   });
 
@@ -29,15 +33,24 @@
     const config = {
       centerX: readFinite(settings, "centerX"),
       centerZ: readFinite(settings, "centerZ"),
+      centerY: readFinite(settings, "centerY"),
       warningDistance: readFinite(settings, "warningDistance"),
       criticalDistance: readFinite(settings, "criticalDistance"),
       resetDistance: readFinite(settings, "resetDistance"),
+      warningAltitude: readFinite(settings, "warningAltitude"),
+      criticalAltitude: readFinite(settings, "criticalAltitude"),
+      resetAltitude: readFinite(settings, "resetAltitude"),
       countdownSeconds: readFinite(settings, "countdownSeconds")
     };
     if (config.warningDistance < 0 ||
         config.criticalDistance <= config.warningDistance ||
         config.resetDistance <= config.criticalDistance) {
       throw new RangeError("Navigation distances must satisfy 0 <= warning < critical < reset");
+    }
+    if (config.warningAltitude < 0 ||
+        config.criticalAltitude <= config.warningAltitude ||
+        config.resetAltitude <= config.criticalAltitude) {
+      throw new RangeError("Navigation altitudes must satisfy 0 <= warning < critical < reset");
     }
     if (config.countdownSeconds <= 0) {
       throw new RangeError("Navigation countdownSeconds must be greater than zero");
@@ -53,19 +66,27 @@
     let countdownSeconds = null;
     let lastCountdownTick = null;
 
-    function calculateDistance(position) {
+    function calculateRadialDistance(position) {
       return Math.hypot(position.x - config.centerX, position.z - config.centerZ);
     }
 
-    function calculateState(nextDistance) {
-      if (nextDistance >= config.criticalDistance) return STATES.CRITICAL;
-      if (nextDistance >= config.warningDistance) return STATES.WARNING;
+    function calculateAltitudeExcess(position) {
+      const y = Number.isFinite(position.y) ? position.y : config.centerY;
+      return Math.abs(y - config.centerY);
+    }
+
+    function calculateState(radial, altitude) {
+      if (radial >= config.criticalDistance || altitude >= config.criticalAltitude) return STATES.CRITICAL;
+      if (radial >= config.warningDistance || altitude >= config.warningAltitude) return STATES.WARNING;
       return STATES.SAFE;
     }
 
-    function calculateDegradation(nextDistance) {
-      const range = config.resetDistance - config.warningDistance;
-      return Math.max(0, Math.min(1, (nextDistance - config.warningDistance) / range));
+    function calculateDegradation(radial, altitude) {
+      const radialRange = config.resetDistance - config.warningDistance;
+      const altitudeRange = config.resetAltitude - config.warningAltitude;
+      const radialDegradation = Math.max(0, Math.min(1, (radial - config.warningDistance) / radialRange));
+      const altitudeDegradation = Math.max(0, Math.min(1, (altitude - config.warningAltitude) / altitudeRange));
+      return Math.max(radialDegradation, altitudeDegradation);
     }
 
     function getSnapshot() {
@@ -78,9 +99,17 @@
     }
 
     function reset(position) {
-      distance = position ? calculateDistance(position) : 0;
-      degradation = calculateDegradation(distance);
-      state = calculateState(distance);
+      if (position) {
+        const radial = calculateRadialDistance(position);
+        const altitude = calculateAltitudeExcess(position);
+        distance = radial;
+        degradation = calculateDegradation(radial, altitude);
+        state = calculateState(radial, altitude);
+      } else {
+        distance = 0;
+        degradation = 0;
+        state = STATES.SAFE;
+      }
       countdownSeconds = null;
       lastCountdownTick = null;
       return getSnapshot();
@@ -90,18 +119,23 @@
       if (!position || !Number.isFinite(position.x) || !Number.isFinite(position.z)) {
         throw new TypeError("Navigation update requires a finite x/z position");
       }
+      if (position.y !== undefined && !Number.isFinite(position.y)) {
+        throw new TypeError("Navigation update requires a finite y position when provided");
+      }
       if (!Number.isFinite(deltaTime) || deltaTime < 0) {
         throw new RangeError("Navigation deltaTime must be a non-negative finite number");
       }
 
       const previousState = state;
-      distance = calculateDistance(position);
-      degradation = calculateDegradation(distance);
-      state = calculateState(distance);
+      const radial = calculateRadialDistance(position);
+      const altitude = calculateAltitudeExcess(position);
+      distance = radial;
+      degradation = calculateDegradation(radial, altitude);
+      state = calculateState(radial, altitude);
       let forcedResetReason = null;
       const countdownTicks = [];
 
-      if (distance >= config.resetDistance) {
+      if (radial >= config.resetDistance || altitude >= config.resetAltitude) {
         countdownSeconds = 0;
         lastCountdownTick = null;
         forcedResetReason = "hard-limit";
