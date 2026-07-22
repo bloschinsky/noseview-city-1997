@@ -238,24 +238,24 @@ Goal: prevent the player from flying under the world or becoming lost in empty s
 
 ### 2.1 Ground and altitude limits
 
-- [ ] Add a configurable minimum camera altitude based on camera collision radius.
-- [ ] Prevent forward movement from pushing the camera below the ground plane.
-- [ ] Preserve rooftop collision behavior.
-- [ ] Clear vertical velocity when reset or ground correction occurs.
-- [ ] Add tests for steep downward movement at all three speed modes.
+- [x] Add a configurable minimum camera altitude based on camera collision radius.
+- [x] Prevent forward movement from pushing the camera below the ground plane.
+- [x] Preserve rooftop collision behavior.
+- [x] Clear vertical velocity when reset or ground correction occurs.
+- [x] Add tests for steep downward movement at all three speed modes.
 
 ### 2.2 Navigation boundary states
 
-- [ ] Define configurable warning, critical, and reset boundary distances.
-- [ ] Start signal degradation before the hard world limit.
-- [ ] Display `NAVIGATION LIMIT` when the warning boundary is crossed.
-- [ ] Display `OUT OF NAVIGATION AREA` at the critical boundary.
-- [ ] Increase visual signal noise as the player moves farther outside the safe area.
-- [ ] Start a visible return countdown in the critical state.
-- [ ] Reset the camera if the player remains outside the hard boundary.
-- [ ] Cancel the countdown when the player returns to the safe area.
-- [ ] Ensure boundary warnings are available as text, not only as visual noise.
-- [ ] Keep reduced-motion behavior usable and non-flashing.
+- [x] Define configurable warning, critical, and reset boundary distances.
+- [x] Start signal degradation before the hard world limit.
+- [x] Display `NAVIGATION LIMIT` when the warning boundary is crossed.
+- [x] Display `OUT OF NAVIGATION AREA` at the critical boundary.
+- [x] Increase visual signal noise as the player moves farther outside the safe area.
+- [x] Start a visible return countdown in the critical state.
+- [x] Reset the camera if the player remains outside the hard boundary.
+- [x] Cancel the countdown when the player returns to the safe area.
+- [x] Ensure boundary warnings are available as text, not only as visual noise.
+- [x] Keep reduced-motion behavior usable and non-flashing.
 
 Suggested state model:
 

@@ -33,6 +33,7 @@
               <canvas id="analog-glow-canvas" class="analog-glow" width="640" height="480" aria-hidden="true"></canvas>
               <canvas id="analog-noise-canvas" class="analog-noise" width="320" height="240" aria-hidden="true"></canvas>
               <div class="analog-beam" aria-hidden="true"></div>
+              <canvas id="navigation-noise-canvas" class="navigation-noise" width="320" height="240" aria-hidden="true"></canvas>
               <div class="hud" aria-hidden="true">
                 <div class="hud-name">NOSEVIEW</div>
                 <div class="hud-alt" id="hud-alt">ALT. 10.00</div>
@@ -42,6 +43,10 @@
                 <div class="corner c3"></div><div class="corner c4"></div>
               </div>
               <div class="scanlines" aria-hidden="true"></div>
+              <div id="navigation-alert" class="navigation-alert" role="status" aria-live="polite" aria-atomic="true" hidden>
+                <strong id="navigation-message"></strong>
+                <span id="navigation-countdown" aria-hidden="true" hidden></span>
+              </div>
               <div id="webgl-error">
                 *** SYSTEM FAILURE ***<br><br>
                 WEBGL NAVIGATION MODULE NOT FOUND.<br>
@@ -61,7 +66,7 @@
                 <td>SPD: <span id="speed">10</span></td>
                 <td>FPS: <span id="fps">--</span></td>
                 <td>BLDG: <span id="building-count">26</span></td>
-                <td colspan="2">STATUS: <span class="blink">ONLINE</span></td>
+                <td colspan="2">STATUS: <span id="navigation-status" class="blink">ONLINE</span></td>
               </tr>
             </table>
           </div>
@@ -102,7 +107,7 @@
               <b>KEYBOARD PILOTS:</b><br>
               W/A/S/D — move &nbsp;|&nbsp; Arrow keys — look around<br>
               R — reset position &nbsp;|&nbsp; F — cycle speed<br><br>
-              <b>WARNING:</b> Collision avoidance module was too expensive and is not installed.
+              <b>WARNING:</b> Automatic recovery engages beyond the navigation limit.
             </div>
           </div>
         </td>
@@ -150,9 +155,11 @@
   <script src="src/engine/math.js"></script>
   <script src="src/engine/city.js"></script>
   <script src="src/engine/flight.js"></script>
+  <script src="src/engine/navigation.js"></script>
   <script src="src/engine/renderer.js"></script>
   <script src="src/effects/analog-vision.js"></script>
   <script src="src/effects/digital-rain.js"></script>
+  <script src="src/effects/navigation-signal.js"></script>
   <script src="src/audio/music.js"></script>
   <script src="src/ui/hud.js"></script>
   <script src="src/ui/controls.js"></script>

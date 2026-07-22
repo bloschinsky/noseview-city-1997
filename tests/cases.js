@@ -104,6 +104,24 @@
         }
       },
       {
+        name: "ground safety clamps steep descent at every speed",
+        run() {
+          Noseview.flight.SPEED_MODES.forEach((_mode, speedIndex) => {
+            const flight = Noseview.flight.createFlightModel({
+              initialCamera: { x: 70, y: 1, z: 70, yaw: 0, pitch: -75 * Math.PI / 180 },
+              speedIndex
+            });
+            flight.setControl("forward", true);
+            const result = flight.update(1);
+            assert(result.groundCorrected, `Ground correction was not reported for speed ${speedIndex}`);
+            assertNear(flight.getSnapshot().camera.y, 0.6, 0.000001, `Minimum altitude changed for speed ${speedIndex}`);
+            flight.setControl("forward", false);
+            flight.update(1);
+            assertNear(flight.getSnapshot().camera.y, 0.6, 0.000001, `Vertical drift remained for speed ${speedIndex}`);
+          });
+        }
+      },
+      {
         name: "pitch remains clamped to plus or minus 75 degrees",
         run() {
           const flight = Noseview.flight.createFlightModel();
@@ -138,6 +156,58 @@
           assert(Noseview.ui.formatHeading(9.6) === "010", "Heading rounding changed");
           assert(Noseview.ui.formatHeading(-1) === "359", "Negative heading normalization changed");
           assert(Noseview.ui.formatHeading(361) === "001", "Positive heading normalization changed");
+        }
+      },
+      {
+        name: "navigation thresholds and degradation are deterministic",
+        run() {
+          const navigation = Noseview.navigation.createNavigationModel();
+          let result = navigation.update({ x: 0, z: 89.999 }, 0);
+          assert(result.snapshot.state === "SAFE", "Safe boundary changed");
+          assert(result.snapshot.degradation === 0, "Safe degradation changed");
+          result = navigation.update({ x: 90, z: 0 }, 0);
+          assert(result.snapshot.state === "WARNING", "Warning boundary changed");
+          result = navigation.update({ x: 120, z: 0 }, 0);
+          assert(result.snapshot.state === "CRITICAL", "Critical boundary changed");
+          assertNear(result.snapshot.degradation, 0.5, 0.000001, "Critical degradation changed");
+          assertNear(result.snapshot.countdownSeconds, 5, 0.000001, "Critical countdown changed");
+          result = navigation.update({ x: 150, z: 0 }, 0);
+          assert(result.forcedResetReason === "hard-limit", "Hard boundary did not request reset");
+          assert(result.snapshot.degradation === 1, "Hard-boundary degradation changed");
+        }
+      },
+      {
+        name: "navigation countdown is frame-rate independent",
+        run() {
+          function runCountdown(step, count) {
+            const navigation = Noseview.navigation.createNavigationModel();
+            navigation.update({ x: 120, z: 0 }, 0);
+            let result;
+            for (let index = 0; index < count; index += 1) {
+              result = navigation.update({ x: 120, z: 0 }, step);
+            }
+            return result;
+          }
+          const coarse = runCountdown(0.5, 10);
+          const fine = runCountdown(0.1, 50);
+          assert(coarse.forcedResetReason === "countdown", "Coarse countdown did not expire");
+          assert(fine.forcedResetReason === "countdown", "Fine countdown did not expire");
+          assertNear(coarse.snapshot.countdownSeconds, fine.snapshot.countdownSeconds, 0.000001, "Countdown depends on step size");
+        }
+      },
+      {
+        name: "leaving critical range cancels the countdown",
+        run() {
+          const navigation = Noseview.navigation.createNavigationModel();
+          navigation.update({ x: 125, z: 0 }, 0);
+          navigation.update({ x: 125, z: 0 }, 2);
+          const warning = navigation.update({ x: 110, z: 0 }, 0);
+          assert(warning.snapshot.state === "WARNING", "Critical state did not clear");
+          assert(warning.snapshot.countdownSeconds === null, "Countdown was not cancelled");
+          const criticalAgain = navigation.update({ x: 125, z: 0 }, 0);
+          assertNear(criticalAgain.snapshot.countdownSeconds, 5, 0.000001, "Countdown did not restart from its full duration");
+          const safe = navigation.reset({ x: 7.5, z: 58 });
+          assert(safe.state === "SAFE" && safe.countdownSeconds === null, "Navigation reset did not restore safe state");
         }
       }
     ];

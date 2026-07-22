@@ -23,8 +23,36 @@
       fps: documentRoot.getElementById("fps"),
       buildings: documentRoot.getElementById("building-count"),
       hudAlt: documentRoot.getElementById("hud-alt"),
-      hudHeading: documentRoot.getElementById("hud-hdg")
+      hudHeading: documentRoot.getElementById("hud-hdg"),
+      navigationAlert: documentRoot.getElementById("navigation-alert"),
+      navigationMessage: documentRoot.getElementById("navigation-message"),
+      navigationCountdown: documentRoot.getElementById("navigation-countdown"),
+      navigationStatus: documentRoot.getElementById("navigation-status")
     };
+
+    const navigationLabels = {
+      SAFE: "ONLINE",
+      WARNING: "NAVIGATION LIMIT",
+      CRITICAL: "OUT OF NAVIGATION AREA"
+    };
+
+    function updateNavigation(navigation) {
+      const label = navigationLabels[navigation.state] || navigationLabels.SAFE;
+      const active = navigation.state !== "SAFE";
+      elements.navigationAlert.hidden = !active;
+      elements.navigationMessage.textContent = active ? label : "";
+      elements.navigationStatus.textContent = label;
+      elements.navigationStatus.classList.toggle("blink", !active);
+      elements.navigationStatus.classList.toggle("is-warning", navigation.state === "WARNING");
+      elements.navigationStatus.classList.toggle("is-critical", navigation.state === "CRITICAL");
+      if (navigation.state === "CRITICAL" && navigation.countdownSeconds !== null) {
+        elements.navigationCountdown.hidden = false;
+        elements.navigationCountdown.textContent = `RETURN IN ${navigation.countdownSeconds.toFixed(1)}`;
+      } else {
+        elements.navigationCountdown.hidden = true;
+        elements.navigationCountdown.textContent = "";
+      }
+    }
 
     function update(snapshot) {
       const heading = formatHeading(snapshot.headingDegrees);
@@ -38,6 +66,7 @@
       elements.buildings.textContent = String(snapshot.buildingCount);
       elements.hudAlt.textContent = `ALT. ${snapshot.position.y.toFixed(2)}`;
       elements.hudHeading.textContent = `HDG. ${heading}`;
+      updateNavigation(snapshot.navigation);
       setVisible(snapshot.effects.hud);
     }
 

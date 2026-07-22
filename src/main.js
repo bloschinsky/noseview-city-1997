@@ -14,6 +14,11 @@
     reducedMotion
   });
   const digitalRain = Noseview.effects.createDigitalRain({ documentRoot, reducedMotion });
+  const navigationSignal = Noseview.effects.createNavigationSignal({
+    container: canvasWrap,
+    canvas: documentRoot.getElementById("navigation-noise-canvas"),
+    reducedMotion
+  });
   const music = Noseview.audio.createMusic({
     documentRoot,
     onError(error) { root.console.error(error); }
@@ -46,6 +51,7 @@
       digitalRain.destroy();
       await music.destroy();
     }
+    navigationSignal.destroy();
   }
 
   try {
@@ -56,6 +62,10 @@
       onTelemetry(snapshot) {
         if (hud) hud.update(snapshot);
         if (controls) controls.updateTelemetry(snapshot);
+        navigationSignal.update(snapshot.navigation);
+      },
+      onNavigationEvent(event) {
+        if (event.type === "forced-reset" && controls) controls.clearInputs();
       },
       onMissionEvent() {},
       onError: showError

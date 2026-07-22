@@ -32,6 +32,8 @@
     const regenerateButton = documentRoot.getElementById("regen-button");
     const cleanups = [];
     const activeControls = {};
+    const heldKeys = new Set();
+    const suppressedKeys = new Set();
     Noseview.flight.CONTROL_NAMES.forEach(name => { activeControls[name] = false; });
     let destroyed = false;
     let previousSettingsFocus = null;
@@ -58,6 +60,17 @@
 
     function clearControls() {
       Object.keys(activeControls).forEach(action => setControl(action, false));
+    }
+
+    function clearInputs() {
+      heldKeys.forEach(code => suppressedKeys.add(code));
+      clearControls();
+    }
+
+    function clearInputsForBlur() {
+      heldKeys.clear();
+      suppressedKeys.clear();
+      clearControls();
     }
 
     function updateToggleButton(button, label, enabled) {
@@ -111,9 +124,13 @@
       if (!settingsModal.hidden) return;
       if (keyMap[event.code]) {
         event.preventDefault();
-        setControl(keyMap[event.code], true);
+        heldKeys.add(event.code);
+        if (!suppressedKeys.has(event.code)) setControl(keyMap[event.code], true);
       }
-      if (!event.repeat && event.code === "KeyR") engine.resetCamera();
+      if (!event.repeat && event.code === "KeyR") {
+        clearInputs();
+        engine.resetCamera();
+      }
       if (!event.repeat && event.code === "KeyF") {
         const speed = engine.cycleSpeed();
         speedButton.textContent = `SPEED: ${speed.name}`;
@@ -123,12 +140,14 @@
     function handleKeyUp(event) {
       if (!keyMap[event.code]) return;
       event.preventDefault();
+      heldKeys.delete(event.code);
+      suppressedKeys.delete(event.code);
       setControl(keyMap[event.code], false);
     }
 
     listen(windowRoot, "keydown", handleKeyDown);
     listen(windowRoot, "keyup", handleKeyUp);
-    listen(windowRoot, "blur", clearControls);
+    listen(windowRoot, "blur", clearInputsForBlur);
 
     function getSettingsFocusables() {
       return Array.from(settingsModal.querySelectorAll("button:not(:disabled)"));
@@ -136,7 +155,7 @@
 
     function openSettings() {
       previousSettingsFocus = documentRoot.activeElement;
-      clearControls();
+      clearInputs();
       settingsModal.hidden = false;
       settingsClose.focus();
     }
@@ -178,8 +197,14 @@
     listen(settingsClose, "click", closeSettings);
     listen(settingsModal, "click", handleSettingsClick);
     listen(settingsModal, "keydown", handleSettingsKeyDown);
-    listen(resetButton, "click", () => engine.resetCamera());
-    listen(regenerateButton, "click", () => engine.regenerateCity());
+    listen(resetButton, "click", () => {
+      clearInputs();
+      engine.resetCamera();
+    });
+    listen(regenerateButton, "click", () => {
+      clearInputs();
+      engine.regenerateCity();
+    });
     listen(speedButton, "click", () => {
       const speed = engine.cycleSpeed();
       speedButton.textContent = `SPEED: ${speed.name}`;
@@ -208,12 +233,14 @@
     function destroy() {
       if (destroyed) return;
       clearControls();
+      heldKeys.clear();
+      suppressedKeys.clear();
       destroyed = true;
       settingsModal.hidden = true;
       cleanups.splice(0).reverse().forEach(cleanup => cleanup());
     }
 
-    return { updateTelemetry, destroy };
+    return { updateTelemetry, clearInputs, destroy };
   }
 
   Noseview.ui.createControls = createControls;

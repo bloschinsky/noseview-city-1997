@@ -36,7 +36,24 @@
     const initialCamera = copyCamera(settings.initialCamera || DEFAULT_CAMERA);
     const speedModes = settings.speedModes || SPEED_MODES;
     const cameraRadius = settings.cameraRadius === undefined ? 0.6 : settings.cameraRadius;
+    const groundY = settings.groundY === undefined ? 0 : settings.groundY;
+    const minimumAltitude = settings.minimumAltitude === undefined
+      ? groundY + cameraRadius
+      : settings.minimumAltitude;
     const maxCollisionStep = settings.maxCollisionStep === undefined ? 0.2 : settings.maxCollisionStep;
+    if (!Number.isFinite(cameraRadius) || cameraRadius <= 0) {
+      throw new RangeError("Camera radius must be a positive finite number");
+    }
+    if (!Number.isFinite(groundY)) {
+      throw new TypeError("Ground altitude must be finite");
+    }
+    if (!Number.isFinite(minimumAltitude)) {
+      throw new TypeError("Minimum altitude must be finite");
+    }
+    if (minimumAltitude < groundY + cameraRadius) {
+      throw new RangeError("Minimum altitude cannot place the camera below the ground plane");
+    }
+    initialCamera.y = Math.max(initialCamera.y, minimumAltitude);
     let camera = copyCamera(initialCamera);
     let colliders = (settings.colliders || []).slice();
     let speedIndex = settings.speedIndex === undefined ? 1 : settings.speedIndex;
@@ -87,9 +104,11 @@
     }
 
     function moveCameraAlongAxis(axis, distance) {
-      if (distance === 0) return;
-
       const start = camera[axis];
+      const requestedBelowGround = axis === "y" && start + distance < minimumAltitude;
+      if (requestedBelowGround) distance = minimumAltitude - start;
+      if (distance === 0) return requestedBelowGround && start <= minimumAltitude;
+
       const target = start + distance;
       const radiusSquared = cameraRadius * cameraRadius;
       let safeFraction = 1;
@@ -137,6 +156,8 @@
       });
 
       camera[axis] = start + distance * safeFraction;
+      if (axis === "y" && camera.y < minimumAltitude) camera.y = minimumAltitude;
+      return requestedBelowGround && camera.y <= minimumAltitude;
     }
 
     function moveCamera(displacementX, displacementY, displacementZ) {
@@ -145,11 +166,13 @@
       const stepX = displacementX / steps;
       const stepY = displacementY / steps;
       const stepZ = displacementZ / steps;
+      let groundCorrected = false;
       for (let index = 0; index < steps; index += 1) {
         moveCameraAlongAxis("x", stepX);
-        moveCameraAlongAxis("y", stepY);
+        groundCorrected = moveCameraAlongAxis("y", stepY) || groundCorrected;
         moveCameraAlongAxis("z", stepZ);
       }
+      return groundCorrected;
     }
 
     function update(deltaTime) {
@@ -175,17 +198,19 @@
         moveForward /= magnitude;
         moveRight /= magnitude;
       }
-      moveCamera(
+      const groundCorrected = moveCamera(
         (forward[0] * moveForward + rightX * moveRight) * moveStep,
         forward[1] * moveForward * moveStep,
         (forward[2] * moveForward + rightZ * moveRight) * moveStep
       );
+      return { groundCorrected };
     }
 
     function getSnapshot() {
       return {
         camera: copyCamera(camera),
-        speed: { ...speedModes[speedIndex] }
+        speed: { ...speedModes[speedIndex] },
+        minimumAltitude
       };
     }
 

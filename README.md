@@ -15,6 +15,7 @@ A retro-futuristic navigation terminal for exploring a procedurally generated 3D
 
 - Free flight through a three-dimensional city
 - Solid collisions with building walls and rooftops
+- Ground-floor protection and automatic navigation-boundary recovery
 - Three speed modes and procedural city regeneration
 - HUD with position, altitude, heading, pitch, and FPS data
 - Optional `ANALOG VISION` with scanlines, a sweeping beam, glow, and signal noise
@@ -60,13 +61,17 @@ The browser floor is primarily set by CSS `aspect-ratio`: it arrived in [Chrome 
 - `R` — reset position
 - `F` — cycle speed
 
+## Navigation Safety
+
+The camera remains at least `0.6` world units above the ground. Signal degradation begins 90 units from the world center, `OUT OF NAVIGATION AREA` and a five-second return countdown begin at 120 units, and crossing 150 units immediately restores the initial camera position. Returning below the critical boundary cancels the countdown.
+
 ## Run
 
 Open `index.html` in a modern browser with WebGL support. No installation or build step is required.
 
 ## Architecture
 
-The canonical edition uses ordered classic scripts under `src/`, with no native modules, dependencies, bundler, or generated runtime bundle. The framework-agnostic engine is created through `window.Noseview.createNoseviewEngine()`; rendering, city generation, flight/collisions, effects, audio, HUD, and page controls remain separate subsystems behind that API.
+The canonical edition uses ordered classic scripts under `src/`, with no native modules, dependencies, bundler, or generated runtime bundle. The framework-agnostic engine is created through `window.Noseview.createNoseviewEngine()`; rendering, city generation, flight/collisions, navigation boundaries, effects, audio, HUD, and page controls remain separate subsystems behind that API.
 
 `window.Noseview` is the only intentional application-level global. `src/main.js` loads last and only wires the engine to the existing page UI.
 

@@ -2,7 +2,7 @@
   "use strict";
 
   const Noseview = root.Noseview;
-  if (!Noseview || !Noseview.city || !Noseview.flight || !Noseview.renderer) {
+  if (!Noseview || !Noseview.city || !Noseview.flight || !Noseview.navigation || !Noseview.renderer) {
     throw new Error("Engine dependencies must load before engine.js");
   }
 
@@ -31,8 +31,10 @@
     const music = settings.music || createNoopMusic();
     const onTelemetry = typeof settings.onTelemetry === "function" ? settings.onTelemetry : function () {};
     const onMissionEvent = typeof settings.onMissionEvent === "function" ? settings.onMissionEvent : function () {};
+    const onNavigationEvent = typeof settings.onNavigationEvent === "function" ? settings.onNavigationEvent : function () {};
     const onError = typeof settings.onError === "function" ? settings.onError : function () {};
     const flight = Noseview.flight.createFlightModel();
+    const navigation = Noseview.navigation.createNavigationModel(settings.navigation);
     let renderer;
     let running = false;
     let destroyed = false;
@@ -43,6 +45,7 @@
     let smoothedFps = 60;
     let currentSeed = Noseview.city.DEFAULT_SEED;
     let city = null;
+    let navigationSnapshot = navigation.reset(flight.getSnapshot().camera);
     const effects = {
       hud: true,
       analogVision: false,
@@ -54,6 +57,14 @@
         onError(error);
       } catch (_callbackError) {
         // Error reporting must not recursively break the engine lifecycle.
+      }
+    }
+
+    function reportNavigationEvent(event) {
+      try {
+        onNavigationEvent(event);
+      } catch (error) {
+        reportError(error);
       }
     }
 
@@ -96,7 +107,8 @@
         buildingCount: city.buildings.length,
         speed: { ...snapshot.speed },
         effects: { ...effects },
-        sound: { available: Boolean(sound.available), enabled: Boolean(sound.enabled) }
+        sound: { available: Boolean(sound.available), enabled: Boolean(sound.enabled) },
+        navigation: { ...navigationSnapshot }
       };
     }
 
@@ -112,16 +124,31 @@
 
     function render(time) {
       if (!running || destroyed || contextLost) return;
-      const deltaTime = Math.min((time - previousTime) / 1000, 0.05);
+      const deltaTime = Math.max(0, Math.min((time - previousTime) / 1000, 0.05));
       previousTime = time;
       flight.update(deltaTime);
+
+      let flightSnapshot = flight.getSnapshot();
+      const navigationResult = navigation.update(flightSnapshot.camera, deltaTime);
+      navigationSnapshot = navigationResult.snapshot;
+      let navigationReset = false;
+      if (navigationResult.forcedResetReason) {
+        flight.clearControls();
+        flight.reset();
+        flightSnapshot = flight.getSnapshot();
+        navigationSnapshot = navigation.reset(flightSnapshot.camera);
+        navigationReset = true;
+        reportNavigationEvent({
+          type: "forced-reset",
+          reason: navigationResult.forcedResetReason
+        });
+      }
 
       if (effects.digitalRain && digitalRain.update(time)) {
         const rainCanvas = digitalRain.getCanvas();
         if (rainCanvas) renderer.updateSkyTexture(rainCanvas);
       }
 
-      const flightSnapshot = flight.getSnapshot();
       renderer.render(flightSnapshot.camera, {
         time,
         analogVisionEnabled: effects.analogVision,
@@ -130,7 +157,7 @@
       if (effects.analogVision) analogVision.update(time, deltaTime, canvas);
 
       smoothedFps += ((1 / Math.max(deltaTime, 0.001)) - smoothedFps) * 0.08;
-      emitTelemetry(time, false);
+      emitTelemetry(time, navigationResult.stateChanged || navigationReset);
       animationFrame = root.requestAnimationFrame(render);
     }
 
@@ -145,14 +172,20 @@
 
     function resetCamera() {
       assertAlive();
+      flight.clearControls();
       flight.reset();
+      navigationSnapshot = navigation.reset(flight.getSnapshot().camera);
+      emitTelemetry(root.performance.now(), true);
     }
 
     function regenerateCity() {
       assertAlive();
       const seed = (Date.now() ^ Math.floor(Math.random() * 0xffffffff)) >>> 0;
       installCity(Noseview.city.generateCity(seed));
+      flight.clearControls();
       flight.reset();
+      navigationSnapshot = navigation.reset(flight.getSnapshot().camera);
+      emitTelemetry(root.performance.now(), true);
     }
 
     function setControl(action, enabled) {

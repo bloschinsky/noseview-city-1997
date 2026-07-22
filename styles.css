@@ -110,6 +110,7 @@
     .scanlines,
     .analog-glow,
     .analog-noise,
+    .navigation-noise,
     .hud {
       position: absolute;
       inset: 0;
@@ -135,6 +136,19 @@
       transition: opacity 120ms linear;
     }
 
+    .navigation-noise {
+      z-index: 4;
+      opacity: 0;
+      background: transparent;
+      mix-blend-mode: screen;
+      image-rendering: auto;
+      transition: opacity 100ms linear;
+    }
+
+    .canvas-wrap.navigation-degraded .navigation-noise {
+      opacity: var(--navigation-noise-opacity, 0.06);
+    }
+
     .analog-beam {
       position: absolute;
       z-index: 3;
@@ -149,7 +163,7 @@
     }
 
     .scanlines {
-      z-index: 4;
+      z-index: 5;
       opacity: 0;
       background:
         linear-gradient(rgba(0, 255, 90, 0.025), rgba(0, 255, 90, 0.025)),
@@ -164,7 +178,7 @@
     }
 
     .hud {
-      z-index: 5;
+      z-index: 6;
       color: #00eaff;
       font: bold 14px "Courier New", monospace;
       text-shadow: 0 0 4px #0066ff;
@@ -185,6 +199,31 @@
     }
 
     .canvas-wrap.hud-hidden .hud { display: none; }
+
+    .navigation-alert {
+      position: absolute;
+      z-index: 7;
+      top: 13%;
+      left: 50%;
+      min-width: 52%;
+      max-width: 86%;
+      transform: translateX(-50%);
+      padding: 5px 9px;
+      border: 1px solid #ffff00;
+      color: #ffff00;
+      background: rgba(0, 0, 0, 0.78);
+      text-align: center;
+      font: bold clamp(11px, 2.3vw, 17px) "Courier New", monospace;
+      letter-spacing: 1px;
+      text-shadow: 0 0 5px rgba(255, 255, 0, 0.8);
+      pointer-events: none;
+    }
+
+    .navigation-alert[hidden] { display: none; }
+    .navigation-alert span { display: block; margin-top: 3px; color: #ff6633; font-size: 0.82em; }
+    .navigation-alert span[hidden] { display: none; }
+    #navigation-status.is-warning { color: #ffff00; }
+    #navigation-status.is-critical { color: #ff6633; }
 
     @keyframes analog-sweep {
       from { top: -8%; }
@@ -543,6 +582,7 @@
 
     @media (prefers-reduced-motion: reduce) {
       .blink { animation: none; }
+      .navigation-noise { transition: none; }
       .canvas-wrap.analog-vision .analog-beam {
         top: 50%;
         opacity: 0.35;
