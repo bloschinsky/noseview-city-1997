@@ -16,6 +16,8 @@ NOSEVIEW 1997 is a dependency-free static WebGL experience. Preserve its dark 19
 - `src/main.js` — application bootstrap and subsystem wiring only.
 - `tests.html`, `tests/` — dependency-free browser and pure-logic test harnesses.
 - `README.md` — concise public project documentation.
+- `TODO.md` — lightweight roadmap index linking to each development direction.
+- `context/roadmap/` — direction-specific milestone TODOs and shared planning constraints.
 
 ## Classic Script Loading Order
 

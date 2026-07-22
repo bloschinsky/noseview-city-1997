@@ -76,6 +76,10 @@ The canonical edition uses ordered classic scripts under `src/`, with no native 
 
 `window.Noseview` is the only intentional application-level global. `src/main.js` loads last and only wires the engine to the existing page UI.
 
+## Roadmap
+
+See the [development roadmap](TODO.md) for the current planning index and links to the separate TODO files for each development direction.
+
 ## Tests
 
 Open `tests.html` directly in a WebGL-capable browser to run the browser and lifecycle suite through `file://`. If Node.js is available, the same pure generation, collision, movement, and formatting cases can also be run with:
