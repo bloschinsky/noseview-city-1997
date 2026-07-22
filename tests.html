@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NOSEVIEW 1997 — Engine Tests</title>
+  <style>
+    body { margin: 20px; color: #00ff66; background: #000; font: 14px "Courier New", monospace; }
+    h1 { color: #00eaff; }
+    li { margin: 8px 0; }
+    .pass, .pass::marker { color: #00ff66; }
+    .fail, .fail::marker { color: #ff4455; }
+    .test-canvas { position: fixed; left: -1000px; top: -1000px; width: 64px; height: 64px; }
+  </style>
+</head>
+<body>
+  <h1>NOSEVIEW ENGINE TESTS</h1>
+  <p id="test-summary">Running…</p>
+  <ol id="test-output"></ol>
+
+  <!-- Production dependencies load in the same deterministic order as index.html. -->
+  <script src="src/namespace.js"></script>
+  <script src="src/engine/math.js"></script>
+  <script src="src/engine/city.js"></script>
+  <script src="src/engine/flight.js"></script>
+  <script src="src/engine/renderer.js"></script>
+  <script src="src/effects/analog-vision.js"></script>
+  <script src="src/effects/digital-rain.js"></script>
+  <script src="src/audio/music.js"></script>
+  <script src="src/ui/hud.js"></script>
+  <script src="src/ui/controls.js"></script>
+  <script src="src/engine/engine.js"></script>
+  <script src="tests/cases.js"></script>
+  <script src="tests/browser-runner.js"></script>
+</body>
+</html>

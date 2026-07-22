@@ -145,6 +145,18 @@
     </div>
   </div>
 
-  <script src="script.js"></script>
+  <!-- Classic scripts load synchronously in dependency order for direct file:// use. -->
+  <script src="src/namespace.js"></script>
+  <script src="src/engine/math.js"></script>
+  <script src="src/engine/city.js"></script>
+  <script src="src/engine/flight.js"></script>
+  <script src="src/engine/renderer.js"></script>
+  <script src="src/effects/analog-vision.js"></script>
+  <script src="src/effects/digital-rain.js"></script>
+  <script src="src/audio/music.js"></script>
+  <script src="src/ui/hud.js"></script>
+  <script src="src/ui/controls.js"></script>
+  <script src="src/engine/engine.js"></script>
+  <script src="src/main.js"></script>
 </body>
 </html>

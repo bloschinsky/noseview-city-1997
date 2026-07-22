@@ -8,8 +8,31 @@ NOSEVIEW 1997 is a dependency-free static WebGL experience. Preserve its dark 19
 
 - `index.html` — page markup, controls, HUD, and settings dialog.
 - `styles.css` — responsive retro UI and overlay effects.
-- `script.js` — IIFE containing WebGL rendering, procedural city generation, camera/collisions, digital-rain sky, analog effects, and Web Audio music.
+- `src/namespace.js` — creates the single intentional `window.Noseview` application namespace.
+- `src/engine/` — pure math, city generation, flight/collisions, WebGL rendering, and the public engine factory.
+- `src/effects/` — Analog Vision and Digital Rain implementations.
+- `src/audio/music.js` — lazy Web Audio synthesis and scheduling.
+- `src/ui/` — HUD formatting/rendering and page input/settings bindings.
+- `src/main.js` — application bootstrap and subsystem wiring only.
+- `tests.html`, `tests/` — dependency-free browser and pure-logic test harnesses.
 - `README.md` — concise public project documentation.
+
+## Classic Script Loading Order
+
+All production scripts are IIFEs loaded together at the end of `index.html`, without `async` or modules. Keep this dependency order synchronized with `tests.html`:
+
+1. `src/namespace.js`
+2. `src/engine/math.js`
+3. `src/engine/city.js`
+4. `src/engine/flight.js`
+5. `src/engine/renderer.js`
+6. `src/effects/analog-vision.js`
+7. `src/effects/digital-rain.js`
+8. `src/audio/music.js`
+9. `src/ui/hud.js`
+10. `src/ui/controls.js`
+11. `src/engine/engine.js`
+12. `src/main.js`
 
 ## Implementation Notes
 
@@ -34,9 +57,10 @@ NOSEVIEW 1997 is a dependency-free static WebGL experience. Preserve its dark 19
 Run before handoff or commit:
 
 ```powershell
-node --check script.js
+Get-ChildItem -Path 'src','tests' -Recurse -Filter *.js | ForEach-Object { node --check $_.FullName; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }
+node tests/node-runner.js
 git diff --check
 git status --short
 ```
 
-For visual changes, manually verify the default state and every affected toggle in a WebGL-capable browser.
+Also open `tests.html` directly through `file://` and confirm that all browser tests pass. For visual changes, manually verify the default state and every affected toggle in a WebGL-capable browser.

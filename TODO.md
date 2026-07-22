@@ -85,12 +85,12 @@ This milestone explicitly does **not** use native ESM. Do not add `import`, `exp
 
 ### 1.1 Define the engine boundary
 
-- [ ] Introduce a `createNoseviewEngine()` factory.
-- [ ] Define the public engine API before moving implementation code.
-- [ ] Keep WebGL objects, buffers, audio nodes, and animation state private to the engine.
-- [ ] Expose commands instead of exposing mutable internal objects.
-- [ ] Add a throttled telemetry callback or subscription for UI data.
-- [ ] Add a complete `destroy()` path for animation frames, timers, audio, and event listeners.
+- [x] Introduce a `createNoseviewEngine()` factory.
+- [x] Define the public engine API before moving implementation code.
+- [x] Keep WebGL objects, buffers, audio nodes, and animation state private to the engine.
+- [x] Expose commands instead of exposing mutable internal objects.
+- [x] Add a throttled telemetry callback or subscription for UI data.
+- [x] Add a complete `destroy()` path for animation frames, timers, audio, and event listeners.
 
 Suggested public API:
 
@@ -117,25 +117,25 @@ The exact names may change, but the engine must not depend on Vue or direct know
 
 ### 1.2 Extract responsibilities into ordered classic scripts
 
-- [ ] Create a single `window.Noseview` namespace before loading subsystem files.
-- [ ] Wrap every file in an IIFE so private implementation details do not leak into the global scope.
-- [ ] Publish only deliberate subsystem APIs on `window.Noseview`.
-- [ ] Document the dependency and loading order in `index.html` and `AGENTS.md`.
-- [ ] Keep all script tags together at the end of `<body>`.
-- [ ] Use plain ordered `<script src="..."></script>` tags without `async`, `type="module"`, or dynamic injection.
-- [ ] Ensure every source file can load from a relative path under `file://`.
+- [x] Create a single `window.Noseview` namespace before loading subsystem files.
+- [x] Wrap every file in an IIFE so private implementation details do not leak into the global scope.
+- [x] Publish only deliberate subsystem APIs on `window.Noseview`.
+- [x] Document the dependency and loading order in `index.html` and `AGENTS.md`.
+- [x] Keep all script tags together at the end of `<body>`.
+- [x] Use plain ordered `<script src="..."></script>` tags without `async`, `type="module"`, or dynamic injection.
+- [x] Ensure every source file can load from a relative path under `file://`.
 
-- [ ] Move vector, matrix, projection, normalization, cross-product, and look-at helpers to `src/engine/math.js`.
-- [ ] Move seeded RNG and procedural city generation to `src/engine/city.js`.
-- [ ] Return building metadata together with geometry and colliders from the city generator.
-- [ ] Move collision and camera movement logic to `src/engine/flight.js` or `src/engine/collision.js`.
-- [ ] Move shader compilation, buffers, draw passes, and WebGL state restoration to `src/engine/renderer.js`.
-- [ ] Move Analog Vision behavior to `src/effects/analog-vision.js`.
-- [ ] Move Digital Rain generation and sky-texture updates to `src/effects/digital-rain.js`.
-- [ ] Move Web Audio synthesis and scheduling to `src/audio/music.js`.
-- [ ] Move keyboard, pointer, focus, and settings bindings to `src/ui/controls.js`.
-- [ ] Keep `src/main.js` limited to application bootstrap and subsystem wiring.
-- [ ] Load `src/main.js` last so every required subsystem is already registered.
+- [x] Move vector, matrix, projection, normalization, cross-product, and look-at helpers to `src/engine/math.js`.
+- [x] Move seeded RNG and procedural city generation to `src/engine/city.js`.
+- [x] Return building metadata together with geometry and colliders from the city generator.
+- [x] Move collision and camera movement logic to `src/engine/flight.js` or `src/engine/collision.js`.
+- [x] Move shader compilation, buffers, draw passes, and WebGL state restoration to `src/engine/renderer.js`.
+- [x] Move Analog Vision behavior to `src/effects/analog-vision.js`.
+- [x] Move Digital Rain generation and sky-texture updates to `src/effects/digital-rain.js`.
+- [x] Move Web Audio synthesis and scheduling to `src/audio/music.js`.
+- [x] Move keyboard, pointer, focus, and settings bindings to `src/ui/controls.js`.
+- [x] Keep `src/main.js` limited to application bootstrap and subsystem wiring.
+- [x] Load `src/main.js` last so every required subsystem is already registered.
 
 Suggested file wrapper:
 
@@ -198,26 +198,26 @@ The final order may change when real dependencies are extracted. It must remain 
 
 ### 1.3 Add low-cost automated tests
 
-- [ ] Add deterministic tests for the seeded RNG.
-- [ ] Verify that the same seed produces identical building metadata.
-- [ ] Verify that every generated solid structure has matching collider data.
-- [ ] Test collision behavior against walls, corners, rooftops, and tiered structures.
-- [ ] Test camera pitch clamping.
-- [ ] Test diagonal movement normalization.
-- [ ] Test heading normalization and HUD formatting.
-- [ ] Add a dependency-free `tests.html` harness that loads the required classic scripts in order and can run through `file://`.
-- [ ] Optionally mirror pure-logic tests in Node, but do not make Node a requirement for opening or playing the canonical edition.
-- [ ] Keep test-only tooling out of the production payload.
+- [x] Add deterministic tests for the seeded RNG.
+- [x] Verify that the same seed produces identical building metadata.
+- [x] Verify that every generated solid structure has matching collider data.
+- [x] Test collision behavior against walls, corners, rooftops, and tiered structures.
+- [x] Test camera pitch clamping.
+- [x] Test diagonal movement normalization.
+- [x] Test heading normalization and HUD formatting.
+- [x] Add a dependency-free `tests.html` harness that loads the required classic scripts in order and can run through `file://`.
+- [x] Optionally mirror pure-logic tests in Node, but do not make Node a requirement for opening or playing the canonical edition.
+- [x] Keep test-only tooling out of the production payload.
 
 ### 1.4 Preserve the direct-open development workflow
 
-- [ ] Keep `index.html` directly runnable after downloading or cloning the repository.
-- [ ] Document `Open index.html in a browser` as the primary local run instruction.
-- [ ] Verify the project from a directory whose path contains spaces.
-- [ ] Verify that no browser request depends on HTTP-only behavior or absolute server paths.
-- [ ] Keep all canonical runtime assets local to the repository.
-- [ ] Keep the source compatible with the existing build-free GitHub Pages deployment; the repository owner handles all pushes and deployment publication manually.
-- [ ] Update `AGENTS.md` validation commands after `script.js` is removed.
+- [x] Keep `index.html` directly runnable after downloading or cloning the repository.
+- [x] Document `Open index.html in a browser` as the primary local run instruction.
+- [x] Verify the project from a directory whose path contains spaces.
+- [x] Verify that no browser request depends on HTTP-only behavior or absolute server paths.
+- [x] Keep all canonical runtime assets local to the repository.
+- [x] Keep the source compatible with the existing build-free GitHub Pages deployment; the repository owner handles all pushes and deployment publication manually.
+- [x] Update `AGENTS.md` validation commands after `script.js` is removed.
 
 ### Acceptance criteria
 

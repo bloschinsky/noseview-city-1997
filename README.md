@@ -64,5 +64,21 @@ The browser floor is primarily set by CSS `aspect-ratio`: it arrived in [Chrome 
 
 Open `index.html` in a modern browser with WebGL support. No installation or build step is required.
 
+## Architecture
+
+The canonical edition uses ordered classic scripts under `src/`, with no native modules, dependencies, bundler, or generated runtime bundle. The framework-agnostic engine is created through `window.Noseview.createNoseviewEngine()`; rendering, city generation, flight/collisions, effects, audio, HUD, and page controls remain separate subsystems behind that API.
+
+`window.Noseview` is the only intentional application-level global. `src/main.js` loads last and only wires the engine to the existing page UI.
+
+## Tests
+
+Open `tests.html` directly in a WebGL-capable browser to run the browser and lifecycle suite through `file://`. If Node.js is available, the same pure generation, collision, movement, and formatting cases can also be run with:
+
+```powershell
+node tests/node-runner.js
+```
+
+Node.js is optional and is not required to open or play the canonical edition.
+
 The tested `v1.3.4` behavior, browser matrix, and reference screenshots are
 recorded in [`docs/testing.md`](docs/testing.md).

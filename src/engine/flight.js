@@ -1,0 +1,209 @@
+(function (root) {
+  "use strict";
+
+  const Noseview = root.Noseview;
+  if (!Noseview) throw new Error("Noseview namespace must load before flight.js");
+
+  const DEFAULT_CAMERA = Object.freeze({
+    x: 7.5,
+    y: 10,
+    z: 58,
+    yaw: 0,
+    pitch: -10 * Math.PI / 180
+  });
+  const SPEED_MODES = Object.freeze([
+    Object.freeze({ name: "SLOW", move: 5, turn: 42 }),
+    Object.freeze({ name: "NORMAL", move: 10, turn: 65 }),
+    Object.freeze({ name: "FAST", move: 19, turn: 92 })
+  ]);
+  const CONTROL_NAMES = Object.freeze([
+    "forward", "backward", "strafeLeft", "strafeRight",
+    "turnLeft", "turnRight", "lookUp", "lookDown"
+  ]);
+
+  function copyCamera(camera) {
+    return {
+      x: camera.x,
+      y: camera.y,
+      z: camera.z,
+      yaw: camera.yaw,
+      pitch: camera.pitch
+    };
+  }
+
+  function createFlightModel(options) {
+    const settings = options || {};
+    const initialCamera = copyCamera(settings.initialCamera || DEFAULT_CAMERA);
+    const speedModes = settings.speedModes || SPEED_MODES;
+    const cameraRadius = settings.cameraRadius === undefined ? 0.6 : settings.cameraRadius;
+    const maxCollisionStep = settings.maxCollisionStep === undefined ? 0.2 : settings.maxCollisionStep;
+    let camera = copyCamera(initialCamera);
+    let colliders = (settings.colliders || []).slice();
+    let speedIndex = settings.speedIndex === undefined ? 1 : settings.speedIndex;
+    const controls = {};
+    CONTROL_NAMES.forEach(name => { controls[name] = false; });
+
+    function assertControl(action) {
+      if (!Object.prototype.hasOwnProperty.call(controls, action)) {
+        throw new RangeError(`Unknown flight control: ${action}`);
+      }
+    }
+
+    function setControl(action, active) {
+      assertControl(action);
+      controls[action] = Boolean(active);
+    }
+
+    function clearControls() {
+      CONTROL_NAMES.forEach(name => { controls[name] = false; });
+    }
+
+    function reset() {
+      camera = copyCamera(initialCamera);
+    }
+
+    function setColliders(nextColliders) {
+      colliders = nextColliders.slice();
+    }
+
+    function cycleSpeed() {
+      speedIndex = (speedIndex + 1) % speedModes.length;
+      return { ...speedModes[speedIndex] };
+    }
+
+    function getForwardDirection() {
+      const cosPitch = Math.cos(camera.pitch);
+      return [
+        Math.sin(camera.yaw) * cosPitch,
+        Math.sin(camera.pitch),
+        -Math.cos(camera.yaw) * cosPitch
+      ];
+    }
+
+    function distanceToInterval(value, min, max) {
+      if (value < min) return min - value;
+      if (value > max) return value - max;
+      return 0;
+    }
+
+    function moveCameraAlongAxis(axis, distance) {
+      if (distance === 0) return;
+
+      const start = camera[axis];
+      const target = start + distance;
+      const radiusSquared = cameraRadius * cameraRadius;
+      let safeFraction = 1;
+
+      colliders.forEach(collider => {
+        let perpendicularDistanceSquared;
+        let min;
+        let max;
+
+        if (axis === "x") {
+          const dy = distanceToInterval(camera.y, collider.minY, collider.maxY);
+          const dz = distanceToInterval(camera.z, collider.minZ, collider.maxZ);
+          perpendicularDistanceSquared = dy * dy + dz * dz;
+          min = collider.minX;
+          max = collider.maxX;
+        } else if (axis === "y") {
+          const dx = distanceToInterval(camera.x, collider.minX, collider.maxX);
+          const dz = distanceToInterval(camera.z, collider.minZ, collider.maxZ);
+          perpendicularDistanceSquared = dx * dx + dz * dz;
+          min = collider.minY;
+          max = collider.maxY;
+        } else {
+          const dx = distanceToInterval(camera.x, collider.minX, collider.maxX);
+          const dy = distanceToInterval(camera.y, collider.minY, collider.maxY);
+          perpendicularDistanceSquared = dx * dx + dy * dy;
+          min = collider.minZ;
+          max = collider.maxZ;
+        }
+
+        if (perpendicularDistanceSquared >= radiusSquared) return;
+        const padding = Math.sqrt(radiusSquared - perpendicularDistanceSquared);
+        const collisionMin = min - padding;
+        const collisionMax = max + padding;
+        let collisionFraction = 1;
+
+        if (distance > 0 && start <= collisionMin && target > collisionMin) {
+          collisionFraction = (collisionMin - start) / distance;
+        } else if (distance < 0 && start >= collisionMax && target < collisionMax) {
+          collisionFraction = (collisionMax - start) / distance;
+        }
+
+        if (collisionFraction < safeFraction) {
+          safeFraction = Math.max(0, collisionFraction - 0.000001);
+        }
+      });
+
+      camera[axis] = start + distance * safeFraction;
+    }
+
+    function moveCamera(displacementX, displacementY, displacementZ) {
+      const distance = Math.hypot(displacementX, displacementY, displacementZ);
+      const steps = Math.max(1, Math.ceil(distance / maxCollisionStep));
+      const stepX = displacementX / steps;
+      const stepY = displacementY / steps;
+      const stepZ = displacementZ / steps;
+      for (let index = 0; index < steps; index += 1) {
+        moveCameraAlongAxis("x", stepX);
+        moveCameraAlongAxis("y", stepY);
+        moveCameraAlongAxis("z", stepZ);
+      }
+    }
+
+    function update(deltaTime) {
+      const mode = speedModes[speedIndex];
+      const turnStep = mode.turn * Math.PI / 180 * deltaTime;
+      const moveStep = mode.move * deltaTime;
+
+      if (controls.turnLeft) camera.yaw -= turnStep;
+      if (controls.turnRight) camera.yaw += turnStep;
+      if (controls.lookUp) camera.pitch += turnStep * 0.8;
+      if (controls.lookDown) camera.pitch -= turnStep * 0.8;
+
+      const pitchLimit = 75 * Math.PI / 180;
+      camera.pitch = Math.max(-pitchLimit, Math.min(pitchLimit, camera.pitch));
+
+      const forward = getForwardDirection();
+      const rightX = Math.cos(camera.yaw);
+      const rightZ = Math.sin(camera.yaw);
+      let moveForward = Number(controls.forward) - Number(controls.backward);
+      let moveRight = Number(controls.strafeRight) - Number(controls.strafeLeft);
+      const magnitude = Math.hypot(moveForward, moveRight);
+      if (magnitude > 1) {
+        moveForward /= magnitude;
+        moveRight /= magnitude;
+      }
+      moveCamera(
+        (forward[0] * moveForward + rightX * moveRight) * moveStep,
+        forward[1] * moveForward * moveStep,
+        (forward[2] * moveForward + rightZ * moveRight) * moveStep
+      );
+    }
+
+    function getSnapshot() {
+      return {
+        camera: copyCamera(camera),
+        speed: { ...speedModes[speedIndex] }
+      };
+    }
+
+    return {
+      setControl,
+      clearControls,
+      reset,
+      setColliders,
+      cycleSpeed,
+      update,
+      getSnapshot
+    };
+  }
+
+  Noseview.flight = {
+    DEFAULT_CAMERA,
+    SPEED_MODES,
+    CONTROL_NAMES,
+    createFlightModel
+  };
+}(window));
