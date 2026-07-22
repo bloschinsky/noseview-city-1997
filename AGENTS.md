@@ -21,6 +21,14 @@ NOSEVIEW 1997 is a dependency-free static WebGL experience. Preserve its dark 19
 - Preserve keyboard, pointer, responsive, focus-management, and `prefers-reduced-motion` behavior.
 - Keep source files UTF-8 and avoid unrelated formatting changes.
 
+## Git and Remote Repository Policy
+
+- Agents must never run `git push` under any circumstances. This prohibition includes branches, commits, tags, force pushes, and every remote destination.
+- Only the repository owner may manually push commits or tags to the remote repository.
+- A request to implement, finish, release, deploy, or complete a roadmap item does not grant an agent permission to push.
+- Agents may prepare local commits or annotated tags only when the user requests them, but must stop before any remote publication and report the resulting local references to the owner.
+- Agents must not trigger or approve remote deployments. They may perform read-only checks of an existing deployment and may verify a new deployment only after the owner has pushed it manually.
+
 ## Validation
 
 Run before handoff or commit:

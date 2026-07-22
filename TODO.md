@@ -30,6 +30,8 @@ The canonical edition must remain lightweight, dependency-free at runtime, stati
 12. Mark a checkbox complete only after its acceptance criteria and the global Definition of Done are satisfied.
 13. Update this file when scope or implementation decisions change.
 14. Do not start the Vue or Trident editions until the canonical engine API is stable.
+15. Never run `git push` for commits, branches, or tags. Only the repository owner publishes local work to the remote repository manually.
+16. Do not trigger remote deployments. After local validation, hand off the commit or tag reference to the repository owner; deployment checks may resume only after the owner has pushed it.
 
 ## Priority Legend
 
@@ -47,7 +49,7 @@ The canonical edition must remain lightweight, dependency-free at runtime, stati
 Goal: create a known-good reference before structural changes.
 
 - [x] Confirm that the deployed GitHub Pages files match the current default branch.
-- [x] Create an annotated `v1.3.4` tag for the current stable baseline if that tag does not already exist.
+- [x] Create a local annotated `v1.3.4` tag for the current stable baseline if that tag does not already exist; leave remote publication to the repository owner.
 - [x] Record the baseline browser test matrix in `README.md` or `docs/testing.md`.
 - [x] Capture at least one desktop screenshot of the default state.
 - [x] Capture at least one screenshot with Analog Vision and Digital Rain enabled.
@@ -214,7 +216,7 @@ The final order may change when real dependencies are extracted. It must remain 
 - [ ] Verify the project from a directory whose path contains spaces.
 - [ ] Verify that no browser request depends on HTTP-only behavior or absolute server paths.
 - [ ] Keep all canonical runtime assets local to the repository.
-- [ ] Preserve GitHub Pages deployment without a runtime build step.
+- [ ] Keep the source compatible with the existing build-free GitHub Pages deployment; the repository owner handles all pushes and deployment publication manually.
 - [ ] Update `AGENTS.md` validation commands after `script.js` is removed.
 
 ### Acceptance criteria
@@ -422,7 +424,7 @@ Goal: make the repository understandable and playable within seconds of opening 
 - [ ] Add the approved `LICENSE` file.
 - [ ] Add a `CHANGELOG.md` or a concise release-history section.
 - [ ] Update visible revision text for the new release.
-- [ ] Create a release tag only after final validation.
+- [ ] Create a local release tag only after final validation and hand it off for manual publication by the repository owner.
 
 ### Acceptance criteria
 
