@@ -379,6 +379,103 @@
           }
           assert(threw, "Invalid altitude configuration did not raise RangeError");
         }
+      },
+      {
+        name: "helipad landmark exposes a landing pad surface",
+        run() {
+          const city = Noseview.city.generateCity(19810001);
+          const helipad = city.landmarks.find(landmark => landmark.type === "helipad-complex");
+          assert(Boolean(helipad), "Default seed did not produce a helipad landmark");
+          const platform = helipad.parts.find(part => part.role === "platform");
+          assert(Boolean(platform), "Helipad has no platform part");
+          assertNear(helipad.landingPadY, platform.bounds.maxY, Number.EPSILON, "landingPadY does not match the platform top");
+          const cabin = helipad.parts.find(part => part.role === "control-cabin");
+          if (cabin) {
+            assert(cabin.bounds.maxY > helipad.landingPadY, "Control cabin is not above the landing pad surface");
+            assertNear(helipad.roofY, Math.max(platform.bounds.maxY, cabin.bounds.maxY), Number.EPSILON, "roofY changed");
+          }
+        }
+      },
+      {
+        name: "mission start spawns on the helipad pad center facing the city",
+        run() {
+          const city = Noseview.city.generateCity(19810001);
+          const helipad = city.landmarks.find(landmark => landmark.type === "helipad-complex");
+          const start = Noseview.city.getMissionStart(city);
+          assertNear(start.x, helipad.x, Number.EPSILON, "Mission start x does not match the helipad center");
+          assertNear(start.z, helipad.z, Number.EPSILON, "Mission start z does not match the helipad center");
+          assertNear(start.y, helipad.landingPadY + 0.61, 0.000001, "Mission start y does not sit slightly above the pad");
+          assertNear(start.pitch, -10 * Math.PI / 180, Number.EPSILON, "Mission start pitch changed");
+          const forwardX = Math.sin(start.yaw);
+          const forwardZ = -Math.cos(start.yaw);
+          const distance = Math.hypot(helipad.x, helipad.z);
+          assert(distance > 0, "Helipad landed on the world center; yaw direction is undefined");
+          const toCenterX = -helipad.x / distance;
+          const toCenterZ = -helipad.z / distance;
+          const dot = forwardX * toCenterX + forwardZ * toCenterZ;
+          assertNear(dot, 1, 0.000001, "Mission start yaw does not face the city center");
+          const custom = Noseview.city.getMissionStart(city, { cameraRadius: 1.4, pitchDegrees: 0 });
+          assertNear(custom.y, helipad.landingPadY + 1.41, 0.000001, "Custom cameraRadius did not affect mission start altitude");
+          assertNear(custom.pitch, 0, Number.EPSILON, "Custom pitchDegrees did not affect mission start pitch");
+        }
+      },
+      {
+        name: "flight.setInitialCamera updates the reset target",
+        run() {
+          const flight = Noseview.flight.createFlightModel();
+          const next = { x: 20, y: 15, z: -5, yaw: 1, pitch: -0.3 };
+          const returned = flight.setInitialCamera(next);
+          assertNear(returned.x, next.x, Number.EPSILON, "Returned camera x mismatch");
+          assertNear(returned.y, next.y, Number.EPSILON, "Returned camera y mismatch");
+          assertNear(returned.z, next.z, Number.EPSILON, "Returned camera z mismatch");
+          assertNear(returned.yaw, next.yaw, Number.EPSILON, "Returned camera yaw mismatch");
+          assertNear(returned.pitch, next.pitch, Number.EPSILON, "Returned camera pitch mismatch");
+          flight.setControl("forward", true);
+          flight.update(0.5);
+          flight.reset();
+          const camera = flight.getSnapshot().camera;
+          assertNear(camera.x, next.x, Number.EPSILON, "Reset x did not return to the new target");
+          assertNear(camera.y, next.y, Number.EPSILON, "Reset y did not return to the new target");
+          assertNear(camera.z, next.z, Number.EPSILON, "Reset z did not return to the new target");
+          assertNear(camera.yaw, next.yaw, Number.EPSILON, "Reset yaw did not return to the new target");
+          assertNear(camera.pitch, next.pitch, Number.EPSILON, "Reset pitch did not return to the new target");
+          const clamped = flight.setInitialCamera({ x: 0, y: 0.1, z: 0, yaw: 0, pitch: 0 });
+          assertNear(clamped.y, 0.6, Number.EPSILON, "setInitialCamera did not enforce minimum altitude");
+        }
+      },
+      {
+        name: "flight.setInitialCamera rejects non-finite values",
+        run() {
+          const flight = Noseview.flight.createFlightModel();
+          const invalidValues = [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY];
+          ["x", "y", "z", "yaw", "pitch"].forEach(field => {
+            invalidValues.forEach(value => {
+              const camera = { x: 0, y: 5, z: 0, yaw: 0, pitch: 0 };
+              camera[field] = value;
+              let threw = false;
+              try {
+                flight.setInitialCamera(camera);
+              } catch (error) {
+                threw = error instanceof TypeError;
+              }
+              assert(threw, `setInitialCamera accepted ${field}=${value}`);
+            });
+          });
+          let missingThrew = false;
+          try {
+            flight.setInitialCamera({ x: 0, y: 5, z: 0, yaw: 0 });
+          } catch (error) {
+            missingThrew = error instanceof TypeError;
+          }
+          assert(missingThrew, "setInitialCamera accepted a camera missing pitch");
+          let nullThrew = false;
+          try {
+            flight.setInitialCamera(null);
+          } catch (error) {
+            nullThrew = error instanceof TypeError;
+          }
+          assert(nullThrew, "setInitialCamera accepted a null camera");
+        }
       }
     ];
   }

@@ -47,7 +47,7 @@
     let smoothedFps = 60;
     let currentSeed = Noseview.city.DEFAULT_SEED;
     let city = null;
-    let navigationSnapshot = navigation.reset(flight.getSnapshot().camera);
+    let navigationSnapshot;
     const effects = {
       hud: true,
       analogVision: false,
@@ -102,8 +102,11 @@
       flight.setColliders(nextCity.colliders);
       city = nextCity;
       currentSeed = nextCity.seed;
+      flight.setInitialCamera(Noseview.city.getMissionStart(nextCity));
     }
     installCity(Noseview.city.generateCity(currentSeed));
+    flight.reset();
+    navigationSnapshot = navigation.reset(flight.getSnapshot().camera);
 
     function assertAlive() {
       if (destroyed) throw new Error("NOSEVIEW engine has been destroyed");
@@ -208,11 +211,8 @@
 
     function regenerateCity() {
       assertAlive();
-      stopNavigationAudioCues();
       const seed = (Date.now() ^ Math.floor(Math.random() * 0xffffffff)) >>> 0;
       installCity(Noseview.city.generateCity(seed));
-      flight.clearControls();
-      flight.reset();
       navigationSnapshot = navigation.reset(flight.getSnapshot().camera);
       emitTelemetry(root.performance.now(), true);
     }

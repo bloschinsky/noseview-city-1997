@@ -259,6 +259,8 @@ Goal: make generated cities recognizable and easier to navigate without losing t
 
 Landmarks replace three ordinary structures within the existing 26-structure city total. Every city contains one landmark of each type.
 
+- [x] Spawn the mission on the helipad-complex landing pad and route `RESET POSITION` / `R` to that pad; `GENERATE NEW CITY` regenerates the layout without moving the pilot (`1.5.4`, via `Noseview.city.getMissionStart` and `flight.setInitialCamera`).
+
 ### Acceptance criteria
 
 - Every generated city contains two or three visually distinct landmarks.

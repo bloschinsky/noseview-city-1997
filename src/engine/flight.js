@@ -79,6 +79,27 @@
       camera = copyCamera(initialCamera);
     }
 
+    function setInitialCamera(nextCamera) {
+      if (!nextCamera || typeof nextCamera !== "object") {
+        throw new TypeError("setInitialCamera requires a camera object");
+      }
+      const fields = ["x", "y", "z", "yaw", "pitch"];
+      for (let index = 0; index < fields.length; index += 1) {
+        const field = fields[index];
+        if (!Number.isFinite(nextCamera[field])) {
+          throw new TypeError(`setInitialCamera requires finite ${field}`);
+        }
+      }
+      const clamped = copyCamera(nextCamera);
+      clamped.y = Math.max(clamped.y, minimumAltitude);
+      initialCamera.x = clamped.x;
+      initialCamera.y = clamped.y;
+      initialCamera.z = clamped.z;
+      initialCamera.yaw = clamped.yaw;
+      initialCamera.pitch = clamped.pitch;
+      return copyCamera(initialCamera);
+    }
+
     function setColliders(nextColliders) {
       colliders = nextColliders.slice();
     }
@@ -218,6 +239,7 @@
       setControl,
       clearControls,
       reset,
+      setInitialCamera,
       setColliders,
       cycleSpeed,
       update,

@@ -63,9 +63,11 @@ The browser floor is primarily set by CSS `aspect-ratio`: it arrived in [Chrome 
 - `R` — reset position
 - `F` — cycle speed
 
+Missions always start hovering above the yellow-cornered helipad-complex landing pad of the current city and facing the world center. `RESET POSITION` and the `R` key both restore that helipad pose. `GENERATE NEW CITY` reshuffles the layout under the pilot without moving the camera or clearing held movement keys; the next `RESET POSITION` then targets the freshly generated helipad.
+
 ## Navigation Safety
 
-The camera remains at least `0.6` world units above the ground. Signal degradation begins 90 units from the world center, `OUT OF NAVIGATION AREA` and a five-second return countdown begin at 120 units, and crossing 150 units immediately restores the initial camera position. The same 90 / 120 / 150 warning, critical, and hard-limit thresholds apply symmetrically to vertical distance from the spawn altitude, so climbing steeply upward — or diving well below the ground plane — engages the same recovery sequence. Returning below the critical boundary cancels the countdown. With `SOUND` enabled, these transitions use generated retro attention, timer, and teleport cues; no sample files are loaded.
+The camera remains at least `0.6` world units above the ground. Signal degradation begins 90 units from the world center, `OUT OF NAVIGATION AREA` and a five-second return countdown begin at 120 units, and crossing 150 units immediately restores the initial camera position (currently the helipad-complex landing pad of the active city). The same 90 / 120 / 150 warning, critical, and hard-limit thresholds apply symmetrically to vertical distance from the spawn altitude, so climbing steeply upward — or diving well below the ground plane — engages the same recovery sequence. Returning below the critical boundary cancels the countdown. With `SOUND` enabled, these transitions use generated retro attention, timer, and teleport cues; no sample files are loaded.
 
 ## Run
 

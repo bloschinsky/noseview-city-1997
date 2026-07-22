@@ -382,10 +382,41 @@
       [[structure.x + cornerX, platform.bounds.maxY, structure.z + cornerZ], [structure.x + cornerX, aerialTopY, structure.z + cornerZ]]
     ]);
     structure.roofY = Math.max(platform.bounds.maxY, cabin.bounds.maxY);
+    structure.landingPadY = platform.bounds.maxY;
     structure.visualTopY = aerialTopY;
     structure.height = aerialTopY - 0.03;
     structure.signalAnchor = { x: structure.x, y: aerialTopY + 0.75, z: structure.z };
     return structure;
+  }
+
+  function getMissionStart(city, options) {
+    if (!city || !Array.isArray(city.landmarks)) {
+      throw new TypeError("getMissionStart requires a city with landmarks");
+    }
+    const settings = options || {};
+    const cameraRadius = settings.cameraRadius !== undefined ? settings.cameraRadius : 0.6;
+    const pitchDegrees = settings.pitchDegrees !== undefined ? settings.pitchDegrees : -10;
+    if (!Number.isFinite(cameraRadius) || cameraRadius < 0) {
+      throw new RangeError("getMissionStart cameraRadius must be a non-negative finite number");
+    }
+    if (!Number.isFinite(pitchDegrees)) {
+      throw new RangeError("getMissionStart pitchDegrees must be a finite number");
+    }
+    const helipad = city.landmarks.find(landmark => landmark && landmark.type === "helipad-complex");
+    if (!helipad) {
+      throw new Error("getMissionStart could not find a helipad-complex landmark");
+    }
+    if (!Number.isFinite(helipad.landingPadY)) {
+      throw new Error("getMissionStart requires the helipad to expose a numeric landingPadY");
+    }
+    const yaw = (helipad.x === 0 && helipad.z === 0) ? 0 : Math.atan2(-helipad.x, helipad.z);
+    return {
+      x: helipad.x,
+      y: helipad.landingPadY + cameraRadius + 0.01,
+      z: helipad.z,
+      yaw,
+      pitch: pitchDegrees * Math.PI / 180
+    };
   }
 
   function createLandmark(descriptor, type, geometry, colliders) {
@@ -434,6 +465,7 @@
     LANDMARK_TYPES,
     SPAWN_CORRIDOR,
     createRng,
-    generateCity
+    generateCity,
+    getMissionStart
   };
 }(window));
