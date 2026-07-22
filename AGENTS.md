@@ -56,6 +56,14 @@ All production scripts are IIFEs loaded together at the end of `index.html`, wit
 - Agents may prepare local commits or annotated tags only when the user requests them, but must stop before any remote publication and report the resulting local references to the owner.
 - Agents must not trigger or approve remote deployments. They may perform read-only checks of an existing deployment and may verify a new deployment only after the owner has pushed it manually.
 
+## Versioning Policy
+
+- Every feature change must include a version bump in the same change set. The implementing agent determines whether the change is small or substantial based on its user-visible and architectural impact.
+- For a small feature, fix, or narrowly scoped improvement, increment the rightmost patch number: `X.Y.Z` → `X.Y.(Z+1)`.
+- For a substantial feature, milestone, or significant gameplay, interface, or architecture change, increment the middle minor number and reset the patch number: `X.Y.Z` → `X.(Y+1).0`.
+- Do not change the leftmost major number unless the repository owner explicitly requests it.
+- Every version bump must be reflected in the visible `CITY NAVIGATION TERMINAL // REV. X.Y.Z` label in `index.html`. Treat that `REV` label as the canonical user-facing version and verify it before handoff or commit.
+
 ## Validation
 
 Run before handoff or commit:
