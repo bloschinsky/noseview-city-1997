@@ -33,12 +33,13 @@ All production scripts are IIFEs loaded together at the end of `index.html`, wit
 7. `src/engine/signal-hunt.js`
 8. `src/effects/analog-vision.js`
 9. `src/effects/digital-rain.js`
-10. `src/effects/navigation-signal.js`
-11. `src/audio/music.js`
-12. `src/ui/hud.js`
-13. `src/ui/controls.js`
-14. `src/engine/engine.js`
-15. `src/main.js`
+10. `src/effects/starfield.js`
+11. `src/effects/navigation-signal.js`
+12. `src/audio/music.js`
+13. `src/ui/hud.js`
+14. `src/ui/controls.js`
+15. `src/engine/engine.js`
+16. `src/main.js`
 
 ## Implementation Notes
 
@@ -48,6 +49,7 @@ All production scripts are IIFEs loaded together at the end of `index.html`, wit
 - Keep navigation boundaries radial and deterministic. Default distances are warning `90`, critical `120`, and forced reset `150`, with a five-second critical countdown.
 - Navigation warnings and signal degradation must remain visible when the optional HUD and Analog Vision are disabled.
 - The digital-rain sky uses a separate shader/program. After its pass, restore the main program, depth test, blending, and vertex attributes.
+- Starfield uses a separate static WebGL point pass. Keep it mutually exclusive with Digital Rain and restore the main program, depth mask, depth test, blending, buffers, and vertex attributes after its pass.
 - Create audio lazily after user interaction to satisfy browser autoplay rules. Navigation cues share that context, react only to navigation events, and must not run independent countdown timers.
 - Preserve keyboard, pointer, responsive, focus-management, and `prefers-reduced-motion` behavior.
 - Keep source files UTF-8 and avoid unrelated formatting changes.

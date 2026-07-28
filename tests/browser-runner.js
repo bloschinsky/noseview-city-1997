@@ -73,7 +73,10 @@
     canvas.height = 64;
     canvas.className = "test-canvas";
     root.document.body.appendChild(canvas);
-    const renderer = Noseview.renderer.createRenderer(canvas, { reducedMotion: { matches: true } });
+    const renderer = Noseview.renderer.createRenderer(canvas, {
+      reducedMotion: { matches: true },
+      starfield: Noseview.effects.createStarfield({ count: 32 })
+    });
     const gl = canvas.getContext("webgl");
     const camera = { x: 0, y: 10, z: 8, yaw: 0, pitch: 0 };
     const activeTarget = { position: { x: 0, y: 10, z: 0 }, status: "ACTIVE" };
@@ -81,19 +84,51 @@
       renderer.render(camera, {
         time: 1000,
         analogVisionEnabled: false,
-        digitalRainEnabled: false,
+        skyMode: "starfield",
         missionTargets: [activeTarget]
       });
       assert(gl.getError() === gl.NO_ERROR, "Active transmitter marker produced a WebGL error");
       renderer.render(camera, {
         time: 1000,
         analogVisionEnabled: true,
-        digitalRainEnabled: false,
+        skyMode: "none",
         missionTargets: []
       });
       assert(gl.getError() === gl.NO_ERROR, "Clearing terminal mission markers produced a WebGL error");
     } finally {
       renderer.destroy();
+      canvas.remove();
+    }
+  }
+
+  async function runSkyModeCase() {
+    const canvas = root.document.createElement("canvas");
+    canvas.width = 64;
+    canvas.height = 64;
+    canvas.className = "test-canvas";
+    root.document.body.appendChild(canvas);
+    const telemetry = [];
+    const rainCalls = [];
+    const digitalRain = {
+      setEnabled(enabled) { rainCalls.push(Boolean(enabled)); return Boolean(enabled); },
+      update() { return false; },
+      getCanvas() { return null; },
+      destroy() {}
+    };
+    const engine = Noseview.createNoseviewEngine(canvas, {
+      starfield: Noseview.effects.createStarfield({ count: 32 }),
+      digitalRain,
+      onTelemetry(snapshot) { telemetry.push(snapshot); }
+    });
+    try {
+      ["digitalRain", "starfield", "none", "starfield", "digitalRain", "starfield", "none"].forEach(mode => engine.setSkyMode(mode));
+      assert(telemetry.every(snapshot => ["none", "digitalRain", "starfield"].includes(snapshot.effects.skyMode)), "Telemetry exposed an invalid sky mode");
+      assert(telemetry.some(snapshot => snapshot.effects.skyMode === "digitalRain"), "Digital Rain transition was not reported");
+      assert(telemetry.some(snapshot => snapshot.effects.skyMode === "starfield"), "Starfield transition was not reported");
+      assert(telemetry[telemetry.length - 1].effects.skyMode === "none", "Rapid sky toggling did not finish at NONE");
+      assert(rainCalls.filter(enabled => !enabled).length >= 4, "Digital Rain was not disabled during sky-mode switches");
+    } finally {
+      await engine.destroy();
       canvas.remove();
     }
   }
@@ -445,7 +480,7 @@
       <button id="settings-button"></button>
       <div id="settings-modal" hidden><button id="settings-close"></button></div>
       <button id="hud-button"></button><button id="analog-button"></button>
-      <button id="digital-rain-button"></button><button id="speed-button"></button>
+      <button id="digital-rain-button"></button><button id="starfield-button"></button><button id="speed-button"></button>
       <button id="sound-button"></button><button id="reset-button"></button>
       <button id="regen-button"></button><button id="mission-start-button"></button>
       <button id="mission-abort-button"></button>
@@ -464,6 +499,7 @@
       replaySignalHunt() { calls.replay += 1; },
       cycleSpeed() { return { name: "NORMAL" }; },
       setEffect(_name, enabled) { return enabled; },
+      setSkyMode(mode) { return mode; },
       setSoundEnabled(enabled) { return Promise.resolve(enabled); }
     };
     const controls = Noseview.ui.createControls({
@@ -476,13 +512,21 @@
     const dialog = fixture.querySelector("#mission-complete");
     const replay = fixture.querySelector("#mission-replay-button");
     const newCity = fixture.querySelector("#mission-new-city-button");
+    const rain = fixture.querySelector("#digital-rain-button");
+    const starfield = fixture.querySelector("#starfield-button");
     const baseSnapshot = {
-      effects: { hud: true, analogVision: false, digitalRain: false },
+      effects: { hud: true, analogVision: false, skyMode: "none" },
       sound: { available: true, enabled: false },
       speed: { name: "NORMAL" },
       mission: { mode: "ACTIVE" }
     };
     try {
+      rain.click();
+      assert(rain.getAttribute("aria-pressed") === "true" && starfield.getAttribute("aria-pressed") === "false", "Digital Rain did not set an exclusive sky button state");
+      starfield.click();
+      assert(rain.getAttribute("aria-pressed") === "false" && starfield.getAttribute("aria-pressed") === "true", "Starfield did not replace Digital Rain in Settings");
+      starfield.click();
+      assert(rain.getAttribute("aria-pressed") === "false" && starfield.getAttribute("aria-pressed") === "false", "Active Starfield did not return Settings to NONE");
       missionStart.focus();
       dialog.hidden = false;
       controls.updateTelemetry({ ...baseSnapshot, mission: { mode: "COMPLETE" } });
@@ -519,6 +563,7 @@
     }
     await runCase({ name: "engine lifecycle stops RAF and telemetry", run: runLifecycleCase });
     await runCase({ name: "signal transmitter marker renders and clears cleanly", run: runMissionTransmitterRendererCase });
+    await runCase({ name: "sky modes are exclusive during rapid transitions", run: runSkyModeCase });
     await runCase({ name: "engine hard boundary resets flight and input", run: runForcedNavigationResetCase });
     await runCase({ name: "navigation audio stays lazy and schedules procedural cues", run: runNavigationAudioCase });
     await runCase({ name: "navigation warnings remain accessible with reduced motion", run: runNavigationUiCase });

@@ -58,6 +58,28 @@
     }
   `;
 
+  const starVertexSource = `
+    attribute vec3 aPosition;
+    attribute float aSizeClass;
+    uniform mat4 uProjection;
+    uniform mat4 uView;
+    uniform float uNormalPointSize;
+    uniform float uLargePointSize;
+
+    void main() {
+      gl_Position = uProjection * uView * vec4(aPosition, 1.0);
+      gl_PointSize = mix(uNormalPointSize, uLargePointSize, aSizeClass);
+    }
+  `;
+
+  const starFragmentSource = `
+    precision mediump float;
+
+    void main() {
+      gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+    }
+  `;
+
   function createRenderer(canvas, options) {
     const settings = options || {};
     const gl = canvas.getContext("webgl", {
@@ -209,8 +231,12 @@
       return createGeometry(data, 3);
     }
 
+    const starfieldGeometry = settings.starfield && typeof settings.starfield.getGeometry === "function"
+      ? settings.starfield.getGeometry()
+      : null;
     const program = createProgram(vertexSource, fragmentSource, "Main");
     const skyProgram = createProgram(skyVertexSource, skyFragmentSource, "Sky");
+    const starProgram = starfieldGeometry ? createProgram(starVertexSource, starFragmentSource, "Starfield") : null;
     const locations = {
       position: gl.getAttribLocation(program, "aPosition"),
       projection: gl.getUniformLocation(program, "uProjection"),
@@ -228,6 +254,14 @@
       view: gl.getUniformLocation(skyProgram, "uView"),
       texture: gl.getUniformLocation(skyProgram, "uTexture")
     };
+    const starLocations = starProgram ? {
+      position: gl.getAttribLocation(starProgram, "aPosition"),
+      sizeClass: gl.getAttribLocation(starProgram, "aSizeClass"),
+      projection: gl.getUniformLocation(starProgram, "uProjection"),
+      view: gl.getUniformLocation(starProgram, "uView"),
+      normalPointSize: gl.getUniformLocation(starProgram, "uNormalPointSize"),
+      largePointSize: gl.getUniformLocation(starProgram, "uLargePointSize")
+    } : null;
 
     const groundFaces = createGeometry([
       -110, -0.08, -110, 110, -0.08, -110, 110, -0.08, 110,
@@ -252,6 +286,7 @@
     // Immutable local-space geometry is positioned per active target with uPositionOffset.
     const missionTransmitterGeometry = createMissionTransmitterGeometry();
     const skyGeometry = createSkyGeometry(150, 24, 48);
+    const starGeometry = starfieldGeometry ? createGeometry(starfieldGeometry.data, starfieldGeometry.stride || 4) : null;
     const skyTexture = gl.createTexture();
     if (!skyTexture) throw new Error("Unable to allocate the sky texture");
     gl.bindTexture(gl.TEXTURE_2D, skyTexture);
@@ -263,12 +298,27 @@
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
 
     const projection = Noseview.math.perspective(60 * Math.PI / 180, canvas.width / canvas.height, 0.1, 190);
+    let starCssScale = null;
+
+    function updateStarPointSizes() {
+      if (!starProgram) return;
+      const cssScale = canvas.clientWidth > 0 ? canvas.width / canvas.clientWidth : 1;
+      if (cssScale === starCssScale) return;
+      const pointSizeRange = gl.getParameter(gl.ALIASED_POINT_SIZE_RANGE);
+      const normalSize = Math.min(pointSizeRange[1], Math.max(pointSizeRange[0], 1.25 * cssScale));
+      const largeSize = Math.min(pointSizeRange[1], Math.max(normalSize, 2.25 * cssScale));
+      starCssScale = cssScale;
+      gl.useProgram(starProgram);
+      gl.uniform1f(starLocations.normalPointSize, normalSize);
+      gl.uniform1f(starLocations.largePointSize, largeSize);
+    }
 
     function restoreMainState() {
       gl.useProgram(program);
       gl.enableVertexAttribArray(locations.position);
       gl.enable(gl.DEPTH_TEST);
       gl.depthFunc(gl.LEQUAL);
+      gl.depthMask(true);
       gl.enable(gl.BLEND);
       gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
     }
@@ -284,6 +334,11 @@
     gl.useProgram(skyProgram);
     gl.uniformMatrix4fv(skyLocations.projection, false, projection);
     gl.uniform1i(skyLocations.texture, 0);
+    if (starProgram) {
+      gl.useProgram(starProgram);
+      gl.uniformMatrix4fv(starLocations.projection, false, projection);
+      updateStarPointSizes();
+    }
     restoreMainState();
 
     function replaceCity(geometry) {
@@ -403,7 +458,7 @@
         gl.drawArrays(gl.LINES, 0, acquiredData.length / 3);
       }
       if (activeTargets.length > 0) {
-        const highContrast = frameState.digitalRainEnabled || frameState.analogVisionEnabled;
+        const highContrast = frameState.skyMode === "digitalRain" || frameState.analogVisionEnabled;
         const pulse = motionReduced ? 1 : 0.92 + Math.sin(time * 0.006) * 0.08;
         const activeColor = highContrast ? [1.0, 0.7 * pulse, 0.08, 1] : [0.2, 0.95 * pulse, 1.0, 1];
         gl.bindBuffer(gl.ARRAY_BUFFER, missionTransmitterGeometry.buffer);
@@ -419,7 +474,7 @@
         gl.vertexAttribPointer(locations.position, 3, gl.FLOAT, false, 0, 0);
         gl.uniform3f(locations.positionOffset, 0, 0, 0);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(activeData), gl.DYNAMIC_DRAW);
-        const highContrast = frameState.digitalRainEnabled || frameState.analogVisionEnabled;
+        const highContrast = frameState.skyMode === "digitalRain" || frameState.analogVisionEnabled;
         const pulse = motionReduced ? 1 : 0.92 + Math.sin(time * 0.006) * 0.08;
         gl.uniform4fv(locations.color, highContrast ? [1.0, 0.7 * pulse, 0.08, 1] : [0.2, 0.95 * pulse, 1.0, 1]);
         gl.drawArrays(gl.LINES, 0, activeData.length / 3);
@@ -445,6 +500,25 @@
       restoreMainState();
     }
 
+    function drawStarfield(view) {
+      if (!starProgram || !starGeometry) return;
+      updateStarPointSizes();
+      gl.disable(gl.DEPTH_TEST);
+      gl.depthMask(false);
+      gl.disable(gl.BLEND);
+      gl.useProgram(starProgram);
+      gl.bindBuffer(gl.ARRAY_BUFFER, starGeometry.buffer);
+      gl.enableVertexAttribArray(starLocations.position);
+      gl.enableVertexAttribArray(starLocations.sizeClass);
+      gl.vertexAttribPointer(starLocations.position, 3, gl.FLOAT, false, 16, 0);
+      gl.vertexAttribPointer(starLocations.sizeClass, 1, gl.FLOAT, false, 16, 12);
+      gl.uniformMatrix4fv(starLocations.view, false, view);
+      gl.drawArrays(gl.POINTS, 0, starGeometry.count);
+      gl.disableVertexAttribArray(starLocations.position);
+      gl.disableVertexAttribArray(starLocations.sizeClass);
+      restoreMainState();
+    }
+
     function render(camera, frameState) {
       if (destroyed || contextLost) return;
       const cosPitch = Math.cos(camera.pitch);
@@ -459,12 +533,16 @@
 
       gl.viewport(0, 0, canvas.width, canvas.height);
       gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-      if (frameState.digitalRainEnabled) {
-        drawSky(Noseview.math.lookAt([0, 0, 0], forward, [0, 1, 0]));
+      const skyMode = frameState.skyMode || "none";
+      const rotationView = Noseview.math.lookAt([0, 0, 0], forward, [0, 1, 0]);
+      if (skyMode === "digitalRain") {
+        drawSky(rotationView);
+      } else if (skyMode === "starfield") {
+        drawStarfield(rotationView);
       } else {
         restoreMainState();
       }
-      gl.uniform1f(locations.skyEnabled, frameState.digitalRainEnabled ? 1 : 0);
+      gl.uniform1f(locations.skyEnabled, skyMode === "digitalRain" ? 1 : 0);
       gl.uniformMatrix4fv(locations.view, false, view);
 
       drawGeometry(groundFaces, gl.TRIANGLES, [0.002, 0.008, 0.004, 1]);
@@ -523,8 +601,10 @@
       deleteGeometry(roadLines);
       deleteGeometry(missionTransmitterGeometry);
       deleteGeometry(skyGeometry);
+      deleteGeometry(starGeometry);
       if (missionMarkerBuffer) gl.deleteBuffer(missionMarkerBuffer);
       gl.deleteTexture(skyTexture);
+      if (starProgram) gl.deleteProgram(starProgram);
       gl.deleteProgram(program);
       gl.deleteProgram(skyProgram);
     }

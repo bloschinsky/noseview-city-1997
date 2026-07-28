@@ -32,6 +32,7 @@
     const settings = options || {};
     const analogVision = settings.analogVision || createNoopEffect();
     const digitalRain = settings.digitalRain || createNoopEffect();
+    const starfield = settings.starfield || { getGeometry() { return null; }, destroy() {} };
     const music = settings.music || createNoopMusic();
     const onTelemetry = typeof settings.onTelemetry === "function" ? settings.onTelemetry : function () {};
     const onMissionEvent = typeof settings.onMissionEvent === "function" ? settings.onMissionEvent : function () {};
@@ -85,7 +86,7 @@
     const effects = {
       hud: true,
       analogVision: false,
-      digitalRain: false
+      skyMode: "none"
     };
 
     function reportError(error) {
@@ -144,7 +145,8 @@
 
     renderer = Noseview.renderer.createRenderer(canvas, {
       onContextLost: handleContextLost,
-      reducedMotion: settings.reducedMotion
+      reducedMotion: settings.reducedMotion,
+      starfield
     });
 
     function installCity(nextCity) {
@@ -234,7 +236,7 @@
         });
       }
 
-      if (effects.digitalRain && digitalRain.update(time)) {
+      if (effects.skyMode === "digitalRain" && digitalRain.update(time)) {
         const rainCanvas = digitalRain.getCanvas();
         if (rainCanvas) renderer.updateSkyTexture(rainCanvas);
       }
@@ -254,7 +256,7 @@
       renderer.render(flightSnapshot.camera, {
         time,
         analogVisionEnabled: effects.analogVision,
-        digitalRainEnabled: effects.digitalRain,
+        skyMode: effects.skyMode,
         missionTargets
       });
       if (effects.analogVision) analogVision.update(time, deltaTime, canvas);
@@ -339,18 +341,31 @@
 
     function setEffect(name, enabled) {
       assertAlive();
+      if (name === "digitalRain") return setSkyMode(enabled ? "digitalRain" : "none");
       if (!Object.prototype.hasOwnProperty.call(effects, name)) {
         throw new RangeError(`Unknown NOSEVIEW effect: ${name}`);
       }
       const nextEnabled = Boolean(enabled);
       if (name === "analogVision") {
         effects[name] = analogVision.setEnabled(nextEnabled);
-      } else if (name === "digitalRain") {
-        effects[name] = digitalRain.setEnabled(nextEnabled);
       } else {
         effects[name] = nextEnabled;
       }
       return effects[name];
+    }
+
+    function setSkyMode(mode) {
+      assertAlive();
+      const normalize = Noseview.effects && typeof Noseview.effects.normalizeSkyMode === "function"
+        ? Noseview.effects.normalizeSkyMode
+        : value => (value === "digitalRain" || value === "starfield" ? value : "none");
+      const requestedMode = normalize(mode);
+      // Resolve the whole sky state synchronously so one render frame can only select one pass.
+      const digitalRainEnabled = requestedMode === "digitalRain" && Boolean(digitalRain.setEnabled(true));
+      if (!digitalRainEnabled) digitalRain.setEnabled(false);
+      effects.skyMode = digitalRainEnabled ? "digitalRain" : (requestedMode === "starfield" ? "starfield" : "none");
+      emitTelemetry(root.performance.now(), true);
+      return effects.skyMode;
     }
 
     async function setSoundEnabled(enabled) {
@@ -374,6 +389,7 @@
       flight.clearControls();
       analogVision.destroy();
       digitalRain.destroy();
+      if (typeof starfield.destroy === "function") starfield.destroy();
       await music.destroy();
       try { if (typeof mission.destroy === "function") mission.destroy(); } catch (_error) {}
       renderer.destroy();
@@ -423,6 +439,7 @@
       setControl,
       cycleSpeed,
       setEffect,
+      setSkyMode,
       setSoundEnabled,
       startSignalHunt,
       abortSignalHunt,

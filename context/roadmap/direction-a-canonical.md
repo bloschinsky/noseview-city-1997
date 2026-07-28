@@ -357,6 +357,8 @@ The completion dialog remains open until the pilot chooses replay or a new city.
 
 Goal: add a restrained white starfield as an optional WebGL-rendered sky while keeping Digital Rain and the default black sky unchanged and mutually exclusive.
 
+Status: completed in `1.9.0`.
+
 Sequence note: this `[P2]` visual feature is intentionally scheduled before the following `[P1]` gameplay systems. It depends only on the existing renderer/effects boundary and the completed Signal Hunt visuals.
 
 ### 5.1 Add an exclusive sky-mode setting

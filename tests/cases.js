@@ -254,6 +254,29 @@
         }
       },
       {
+        name: "starfield geometry and sky-mode transitions are deterministic",
+        run() {
+          const first = Noseview.effects.createStarfield({ seed: 19770001, count: 700 });
+          const second = Noseview.effects.createStarfield({ seed: 19770001, count: 700 });
+          const geometry = first.getGeometry();
+          assert(JSON.stringify(Array.from(geometry.data)) === JSON.stringify(Array.from(second.getGeometry().data)), "Star layout is not deterministic");
+          assert(geometry.count === 700 && geometry.largeCount === 70, "Star population or large-star cap changed");
+          for (let index = 0; index < geometry.count; index += 1) {
+            const offset = index * 4;
+            assertNear(
+              Math.hypot(geometry.data[offset], geometry.data[offset + 1], geometry.data[offset + 2]),
+              1,
+              0.000001,
+              "Star direction left the unit sphere"
+            );
+          }
+          assert(Noseview.effects.toggleSkyMode("none", "digitalRain") === "digitalRain", "Could not enable Digital Rain");
+          assert(Noseview.effects.toggleSkyMode("digitalRain", "starfield") === "starfield", "Could not atomically switch to Starfield");
+          assert(Noseview.effects.toggleSkyMode("starfield", "starfield") === "none", "Active Starfield did not turn off");
+          assert(Noseview.effects.toggleSkyMode("none", "invalid") === "none", "Invalid sky mode was accepted");
+        }
+      },
+      {
         name: "navigation thresholds and degradation are deterministic",
         run() {
           const navigation = Noseview.navigation.createNavigationModel();

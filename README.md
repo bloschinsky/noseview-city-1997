@@ -20,7 +20,7 @@ A retro-futuristic navigation terminal for exploring a procedurally generated 3D
 - Three speed modes and procedural city regeneration
 - HUD with position, altitude, heading, pitch, and FPS data
 - Optional `ANALOG VISION` with scanlines, a sweeping beam, glow, and signal noise
-- Configurable green digital-rain background for the empty city space
+- Mutually exclusive green Digital Rain or static white WebGL Starfield backgrounds (both off by default)
 - Optional procedurally synthesized AdLib-style background music
 - Procedural retro attention, countdown, and automatic-return audio cues
 - Responsive keyboard and on-screen controls
@@ -79,6 +79,10 @@ Missions always start hovering above the yellow-cornered helipad-complex landing
 ## Navigation Safety
 
 The camera remains at least `0.6` world units above the ground. Signal degradation begins 90 units from the world center, `OUT OF NAVIGATION AREA` and a five-second return countdown begin at 120 units, and crossing 150 units immediately restores the initial camera position (currently the helipad-complex landing pad of the active city). The same 90 / 120 / 150 warning, critical, and hard-limit thresholds apply symmetrically to vertical distance from the spawn altitude, so climbing steeply upward — or diving well below the ground plane — engages the same recovery sequence. Returning below the critical boundary cancels the countdown. With `SOUND` enabled, these transitions use generated retro attention, timer, and teleport cues, along with a dull "bump" sound when the camera hits an obstacle; no sample files are loaded.
+
+## Display Effects
+
+Settings offers `DIGITAL RAIN` and `STARFIELD` as one exclusive sky selection: turning on either turns the other off, and pressing the active option again returns to the default black sky. Starfield is a fixed 700-point white WebGL sky with no motion or regeneration, including when reduced motion is enabled.
 
 ## Run
 

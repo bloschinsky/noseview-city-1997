@@ -14,6 +14,7 @@
     reducedMotion
   });
   const digitalRain = Noseview.effects.createDigitalRain({ documentRoot, reducedMotion });
+  const starfield = Noseview.effects.createStarfield();
   const navigationSignal = Noseview.effects.createNavigationSignal({
     container: canvasWrap,
     canvas: documentRoot.getElementById("navigation-noise-canvas"),
@@ -49,6 +50,7 @@
     } else {
       analogVision.destroy();
       digitalRain.destroy();
+      starfield.destroy();
       await music.destroy();
     }
     navigationSignal.destroy();
@@ -58,6 +60,7 @@
     engine = Noseview.createNoseviewEngine(canvas, {
       analogVision,
       digitalRain,
+      starfield,
       music,
       reducedMotion,
       onTelemetry(snapshot) {

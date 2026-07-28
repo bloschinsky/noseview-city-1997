@@ -26,6 +26,7 @@
     const hudButton = documentRoot.getElementById("hud-button");
     const analogButton = documentRoot.getElementById("analog-button");
     const rainButton = documentRoot.getElementById("digital-rain-button");
+    const starfieldButton = documentRoot.getElementById("starfield-button");
     const speedButton = documentRoot.getElementById("speed-button");
     const soundButton = documentRoot.getElementById("sound-button");
     const resetButton = documentRoot.getElementById("reset-button");
@@ -46,7 +47,7 @@
     let completionOpen = false;
     let hudEnabled = true;
     let analogEnabled = false;
-    let rainEnabled = false;
+    let skyMode = "none";
     let soundEnabled = false;
     let soundAvailable = true;
     let soundPending = false;
@@ -91,6 +92,18 @@
       soundButton.classList.toggle("is-active", soundEnabled && soundAvailable);
       soundButton.setAttribute("aria-pressed", String(soundEnabled && soundAvailable));
       soundButton.textContent = soundAvailable ? `SOUND: ${soundEnabled ? "ON" : "OFF"}` : "SOUND: N/A";
+    }
+
+    function syncSkyMode(mode) {
+      skyMode = mode === "digitalRain" || mode === "starfield" ? mode : "none";
+      updateToggleButton(rainButton, "DIGITAL RAIN", skyMode === "digitalRain");
+      updateToggleButton(starfieldButton, "STARFIELD", skyMode === "starfield");
+    }
+
+    function toggleSkyMode(selectedMode) {
+      const nextMode = skyMode === selectedMode ? "none" : selectedMode;
+      skyMode = engine.setSkyMode(nextMode);
+      syncSkyMode(skyMode);
     }
 
     function updateMissionButtons(snapshot) {
@@ -147,12 +160,11 @@
       if (destroyed) return;
       hudEnabled = snapshot.effects.hud;
       analogEnabled = snapshot.effects.analogVision;
-      rainEnabled = snapshot.effects.digitalRain;
+      syncSkyMode(snapshot.effects.skyMode);
       soundEnabled = snapshot.sound.enabled;
       soundAvailable = snapshot.sound.available;
       updateToggleButton(hudButton, "HUD", hudEnabled);
       updateToggleButton(analogButton, "ANALOG VISION", analogEnabled);
-      updateToggleButton(rainButton, "DIGITAL RAIN", rainEnabled);
       updateSoundButton();
       speedButton.textContent = `SPEED: ${snapshot.speed.name}`;
       updateMissionButtons(snapshot);
@@ -310,8 +322,10 @@
       updateToggleButton(analogButton, "ANALOG VISION", analogEnabled);
     });
     listen(rainButton, "click", () => {
-      rainEnabled = engine.setEffect("digitalRain", !rainEnabled);
-      updateToggleButton(rainButton, "DIGITAL RAIN", rainEnabled);
+      toggleSkyMode("digitalRain");
+    });
+    listen(starfieldButton, "click", () => {
+      toggleSkyMode("starfield");
     });
     listen(soundButton, "click", async () => {
       if (!soundAvailable || soundPending) return;
