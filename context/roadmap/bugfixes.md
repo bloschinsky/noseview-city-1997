@@ -61,9 +61,77 @@ This document tracks confirmed bugs, their root causes, and the planned fixes.
 
 ---
 
+## BUG-003 — Signal Hunt beacon acquisition range is too large `[P1]` — Planned
+
+**Symptom:** The active radio beacon can currently be acquired from up to `80` world units away. This lets the player complete a scan without approaching the transmitter closely enough, reducing the intended search-and-approach challenge.
+
+**Affected files:**
+
+- `src/engine/signal-hunt.js` — `SCAN_MAX_DISTANCE` defaults to `80` and is used by the distance gate and signal-intensity calculation.
+- `tests/cases.js` — Signal Hunt model tests need explicit coverage of the default maximum acquisition boundary.
+- `index.html` — the visible revision label must receive the patch-version bump required for the implemented fix.
+
+**Root cause:** The default `scanMaxDistance` was tuned too generously for the current city scale and beacon placement. The acquisition cone, two-second lock duration, and minimum distance are otherwise behaving as intended.
+
+**Fix plan:**
+
+- [ ] Reduce the default `SCAN_MAX_DISTANCE` from `80` to `40`, exactly 50% of the current value.
+- [ ] Keep the configurable `scanMaxDistance` option working so tests and future tuning can still override the default.
+- [ ] Do not change the acquisition cone, minimum scan distance, two-second lock duration, guidance, or mission timer.
+- [ ] Verify the signal-intensity falloff still reaches zero at the new maximum distance and remains bounded between `0` and `1`.
+- [ ] Add deterministic tests proving that a correctly aimed target just inside `40` units can lock, while the same target just beyond `40` units cannot start or advance the lock.
+- [ ] Verify leaving the new distance boundary clears any partial lock progress and re-entering requires a fresh uninterrupted lock.
+- [ ] Apply the required patch-version bump to the visible `CITY NAVIGATION TERMINAL // REV. X.Y.Z` label.
+
+**Acceptance criteria:**
+
+- Default Signal Hunt acquisition works only from `2.5` through `40` world units, inclusive.
+- A target farther than `40` world units may still provide guidance but cannot report `scan.inCone`, advance lock progress, or be acquired.
+- Custom `scanMaxDistance` values retain their existing behavior.
+- Existing Signal Hunt lifecycle, timer, event, replay, and completion tests continue to pass.
+
+---
+
+## BUG-004 — Signal Hunt beacon lacks a visible transmitter body `[P2]` — Planned
+
+**Symptom:** The active Signal Hunt beacon is represented only by animated circular signal waves. There is no physical transmitter at the center of those waves, so the target reads as a floating effect rather than a small rooftop radio beacon.
+
+**Affected files:**
+
+- `src/engine/renderer.js` — `drawMissionWaves` currently creates and draws only four circular wave rings around the active target.
+- `tests/browser-runner.js` — renderer lifecycle or WebGL smoke coverage may need extension if the marker geometry changes observable rendering calls or buffer use.
+- `index.html` — the visible revision label must receive the patch-version bump required for the implemented improvement.
+
+**Root cause:** The first beacon presentation implemented the signal effect but omitted the low-poly transmitter body and antenna described by the visual design.
+
+**Fix plan:**
+
+- [ ] Add a small square wireframe transmitter box centered on the existing mission target anchor.
+- [ ] Add a short vertical antenna rising from the top center of the box.
+- [ ] Keep the existing circular waves centered on the antenna/transmitter so they clearly read as a signal emitted by the device.
+- [ ] Match the current cyan wireframe palette and preserve readable color distinction when Analog Vision is enabled.
+- [ ] Keep the marker lightweight by reusing the existing mission marker buffer or other renderer-owned geometry; do not allocate new WebGL buffers or typed arrays every frame when static box and antenna geometry can be reused.
+- [ ] Preserve depth testing, blending, active shader program, vertex attributes, and all renderer state expected by subsequent passes.
+- [ ] Ensure city regeneration, mission abort/completion, context loss, and renderer destruction do not leave stale marker geometry or WebGL resources.
+- [ ] Respect `prefers-reduced-motion`: the box and antenna remain visible when wave animation is reduced or made static.
+- [ ] Apply the required patch-version bump to the visible `CITY NAVIGATION TERMINAL // REV. X.Y.Z` label.
+
+**Acceptance criteria:**
+
+- During an active Signal Hunt mission, the target visibly consists of a small square transmitter box, a vertical antenna, and the existing circular signal waves.
+- The waves originate from the same target position as the physical transmitter and do not appear offset from it.
+- The marker remains legible in the default view and with Analog Vision enabled.
+- No beacon marker remains after the mission is aborted or completed.
+- Default rendering performance and unrelated city, navigation, HUD, and Digital Rain visuals remain unchanged.
+- Manual verification passes in a WebGL-capable browser for default, Analog Vision, Digital Rain, combined effects, and reduced-motion states.
+
+---
+
 ## Checklist summary
 
 | ID | Bug | Priority | Status |
 | --- | --- | --- | --- |
 | BUG-001 | Analog Vision makes all elements green | P1 | Fixed in 1.5.2 |
 | BUG-002 | Navigation Limit bypassed by steep vertical flight | P1 | Fixed in 1.5.3 |
+| BUG-003 | Signal Hunt beacon acquisition range is too large | P1 | Planned |
+| BUG-004 | Signal Hunt beacon lacks a visible transmitter body | P2 | Planned |
