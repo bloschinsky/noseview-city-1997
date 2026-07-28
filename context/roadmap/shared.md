@@ -14,7 +14,7 @@ These ideas are intentionally not part of the next release:
 - [ ] Gamepad support.
 - [ ] Renderer profiling overlay.
 
-They should not block Milestones 0–7.
+They should not block Milestones 0–8.
 
 ---
 
@@ -102,6 +102,8 @@ Procedural landmarks
 SIGNAL HUNT
     ↓
 Collision records, Missions menu, optional Hull Integrity, and Fuel Endurance
+    ↓
+Optional WebGL Starfield sky
     ↓
 Flight feel and camera polish
     ↓

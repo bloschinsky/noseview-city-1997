@@ -533,7 +533,98 @@ These values are named configuration defaults and must be tuned through playtest
 
 ---
 
-## Milestone 6 — Flight Feel and Camera Polish `[P2]`
+## Milestone 6 — Optional WebGL Starfield Sky `[P2]`
+
+Goal: add a restrained white starfield as an optional WebGL-rendered sky while keeping Digital Rain and the default black sky unchanged and mutually exclusive.
+
+### 6.1 Add an exclusive sky-mode setting
+
+- [ ] Add a `STARFIELD` toggle button to the `DISPLAY EFFECTS` group in Settings; keep it disabled by default.
+- [ ] Replace independent sky booleans at the engine/UI boundary with one explicit sky mode: `NONE`, `DIGITAL_RAIN`, or `STARFIELD`.
+- [ ] Keep Analog Vision, HUD, sound, missions, Hull Integrity, and Fuel Endurance independent of the selected sky mode.
+- [ ] Enabling Starfield must atomically disable Digital Rain before the next rendered frame.
+- [ ] Enabling Digital Rain must atomically disable Starfield before the next rendered frame.
+- [ ] Pressing the active sky-mode button again must return the sky mode to `NONE`.
+- [ ] Reflect the resolved mode in telemetry and keep both Settings buttons, text labels, active styling, and `aria-pressed` values synchronized.
+- [ ] Prevent transient frames where both sky effects render during rapid pointer, touch, or keyboard activation.
+- [ ] Preserve the selected sky mode across camera reset and mission restart; return to `NONE` only through the relevant Settings action or normal application teardown.
+- [ ] Add pure and browser tests for every `NONE ↔ DIGITAL_RAIN ↔ STARFIELD` transition and for repeated rapid toggling.
+
+Suggested public boundary:
+
+```js
+engine.setSkyMode("starfield");
+
+snapshot.effects.skyMode; // "none", "digitalRain", or "starfield"
+```
+
+The exact API names may change, but sky exclusivity must be enforced by engine state rather than inferred from two DOM buttons.
+
+### 6.2 Generate a static white starfield
+
+- [ ] Implement Starfield as a dedicated effect/renderer subsystem, suggested as `src/effects/starfield.js`, using WebGL point geometry rather than DOM elements or a CSS background.
+- [ ] Generate a deterministic set of unit-sphere star directions from a named seed so the distribution can be pinned in tests.
+- [ ] Keep the star layout independent of the city seed, city regeneration, camera position, and mission seed.
+- [ ] Distribute stars over the surrounding sky without visible grid rows or a dense pole cluster.
+- [ ] Render every star as pure white with no hue, brightness, or saturation variation.
+- [ ] Render most stars at one small point size and allow no more than 10% of the total count to use one slightly larger point size.
+- [ ] Clamp requested point sizes to the device's `ALIASED_POINT_SIZE_RANGE` and keep the large class visibly restrained.
+- [ ] Keep the starfield static: no twinkle, flicker, trails, rotation, falling motion, or time-dependent random regeneration.
+- [ ] Use the same static presentation when `prefers-reduced-motion` is active.
+- [ ] Store size class explicitly or in deterministic vertex data; do not choose large stars randomly every frame.
+
+Initial tuning values:
+
+```text
+Star count:            700
+Large-star ratio:      0.10 maximum
+Normal point size:     1.25 CSS-equivalent pixels
+Large point size:      2.25 CSS-equivalent pixels
+Color:                 rgba(255, 255, 255, 1)
+Animation:             none
+```
+
+These are named tuning defaults. The final implementation may reduce the large-star ratio or point sizes after visual testing, but must never exceed the 10% large-star limit.
+
+### 6.3 Add the WebGL star pass
+
+- [ ] Create a small dedicated star shader/program and immutable vertex buffer; do not reuse the Digital Rain canvas texture.
+- [ ] Draw stars with `gl.POINTS` as a sky pass before ground, city, mission, and pickup geometry.
+- [ ] Use camera rotation but remove camera translation so flying through the city produces no star parallax.
+- [ ] Keep stars visually behind all world geometry by disabling depth writes for the star pass and restoring them before the main pass.
+- [ ] Keep the sky background black and avoid an opaque full-screen layer that could hide the city.
+- [ ] Render only the currently selected sky pass: the Digital Rain sky or the Starfield point pass, never both.
+- [ ] Restore the main program, depth test, depth mask, blending, buffers, and vertex attributes after drawing stars.
+- [ ] Avoid buffer uploads, shader compilation, geometry allocation, or random generation during normal frames.
+- [ ] Delete Starfield buffers, shaders/programs, and other owned resources during renderer teardown.
+- [ ] Keep the star pass inert when disabled so the default-mode frame cost is effectively unchanged.
+
+### 6.4 Visual validation, documentation, and delivery
+
+- [ ] Add the new classic script to `index.html` and `tests.html` in the same deterministic position and synchronize the loading order in `AGENTS.md`.
+- [ ] Document the Starfield setting and its mutual exclusion with Digital Rain in `README.md`.
+- [ ] Verify the default `NONE` sky, Digital Rain, and Starfield separately in a WebGL-capable browser.
+- [ ] Verify that switching between Digital Rain and Starfield never shows a mixed or stale frame.
+- [ ] Verify Starfield with Analog Vision, navigation degradation, Signal Hunt markers, fuel-barrel red beams, and the optional HUD.
+- [ ] Verify all stars remain white and that larger stars never exceed 10% of the generated population.
+- [ ] Verify desktop, narrow layouts, device-pixel-ratio changes, resize behavior, and WebGL point-size limits.
+- [ ] Verify Settings keyboard focus, touch activation, active styling, and `aria-pressed` state for both sky buttons.
+- [ ] Apply the required visible `REV` bump when the feature is implemented.
+
+### Acceptance criteria
+
+- Starfield is off by default and can be enabled from Settings as a WebGL-rendered sky.
+- Digital Rain and Starfield are mutually exclusive in engine state, UI state, and every rendered frame.
+- The sky contains only white point stars, with no more than 10% rendered slightly larger than the rest.
+- Stars remain fixed relative to camera rotation without translating or regenerating as the player flies.
+- Starfield introduces no animation and remains compatible with reduced-motion preferences.
+- World geometry, navigation warnings, mission markers, and fuel-barrel beams remain readable over the starfield.
+- Disabling or switching the effect leaves no stale star geometry on screen and default-mode performance remains unchanged.
+- The direct-open `file://` workflow and explicit classic-script dependency order remain intact.
+
+---
+
+## Milestone 7 — Flight Feel and Camera Polish `[P2]`
 
 Goal: make movement feel more like a lightweight vehicle while preserving immediate keyboard and touch control.
 
@@ -566,7 +657,7 @@ Release damping:      under one second to settle
 
 ---
 
-## Milestone 7 — Canonical Release and Repository Presentation `[P2]`
+## Milestone 8 — Canonical Release and Repository Presentation `[P2]`
 
 Goal: make the repository understandable and playable within seconds of opening its GitHub page.
 
