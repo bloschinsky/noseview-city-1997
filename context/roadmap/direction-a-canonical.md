@@ -353,11 +353,104 @@ The completion dialog remains open until the pilot chooses replay or a new city.
 
 ---
 
-## Milestone 5 — Collision Records, Missions Menu, Hull Integrity, and Fuel Endurance `[P1]`
+## Milestone 5 — Optional WebGL Starfield Sky `[P2]`
 
-Goal: expose meaningful collision history, give missions a dedicated launch surface, and add independent optional hull-damage and fuel-survival rules without changing Free Flight or making Signal Hunt mandatory.
+Goal: add a restrained white starfield as an optional WebGL-rendered sky while keeping Digital Rain and the default black sky unchanged and mutually exclusive.
 
-### 5.1 Normalize collision incidents
+Sequence note: this `[P2]` visual feature is intentionally scheduled before the following `[P1]` gameplay systems. It depends only on the existing renderer/effects boundary and the completed Signal Hunt visuals.
+
+### 5.1 Add an exclusive sky-mode setting
+
+- [ ] Add a `STARFIELD` toggle button to the `DISPLAY EFFECTS` group in Settings; keep it disabled by default.
+- [ ] Replace independent sky booleans at the engine/UI boundary with one explicit sky mode: `NONE`, `DIGITAL_RAIN`, or `STARFIELD`.
+- [ ] Keep Analog Vision, HUD, sound, and mission state independent of the selected sky mode.
+- [ ] Enabling Starfield must atomically disable Digital Rain before the next rendered frame.
+- [ ] Enabling Digital Rain must atomically disable Starfield before the next rendered frame.
+- [ ] Pressing the active sky-mode button again must return the sky mode to `NONE`.
+- [ ] Reflect the resolved mode in telemetry and keep both Settings buttons, text labels, active styling, and `aria-pressed` values synchronized.
+- [ ] Prevent transient frames where both sky effects render during rapid pointer, touch, or keyboard activation.
+- [ ] Preserve the selected sky mode across camera reset and mission restart; return to `NONE` only through the relevant Settings action or normal application teardown.
+- [ ] Add pure and browser tests for every `NONE ↔ DIGITAL_RAIN ↔ STARFIELD` transition and for repeated rapid toggling.
+
+Suggested public boundary:
+
+```js
+engine.setSkyMode("starfield");
+
+snapshot.effects.skyMode; // "none", "digitalRain", or "starfield"
+```
+
+The exact API names may change, but sky exclusivity must be enforced by engine state rather than inferred from two DOM buttons.
+
+### 5.2 Generate a static white starfield
+
+- [ ] Implement Starfield as a dedicated effect/renderer subsystem, suggested as `src/effects/starfield.js`, using WebGL point geometry rather than DOM elements or a CSS background.
+- [ ] Generate a deterministic set of unit-sphere star directions from a named seed so the distribution can be pinned in tests.
+- [ ] Keep the star layout independent of the city seed, city regeneration, camera position, and mission seed.
+- [ ] Distribute stars over the surrounding sky without visible grid rows or a dense pole cluster.
+- [ ] Render every star as pure white with no hue, brightness, or saturation variation.
+- [ ] Render most stars at one small point size and allow no more than 10% of the total count to use one slightly larger point size.
+- [ ] Clamp requested point sizes to the device's `ALIASED_POINT_SIZE_RANGE` and keep the large class visibly restrained.
+- [ ] Keep the starfield static: no twinkle, flicker, trails, rotation, falling motion, or time-dependent random regeneration.
+- [ ] Use the same static presentation when `prefers-reduced-motion` is active.
+- [ ] Store size class explicitly or in deterministic vertex data; do not choose large stars randomly every frame.
+
+Initial tuning values:
+
+```text
+Star count:            700
+Large-star ratio:      0.10 maximum
+Normal point size:     1.25 CSS-equivalent pixels
+Large point size:      2.25 CSS-equivalent pixels
+Color:                 rgba(255, 255, 255, 1)
+Animation:             none
+```
+
+These are named tuning defaults. The final implementation may reduce the large-star ratio or point sizes after visual testing, but must never exceed the 10% large-star limit.
+
+### 5.3 Add the WebGL star pass
+
+- [ ] Create a small dedicated star shader/program and immutable vertex buffer; do not reuse the Digital Rain canvas texture.
+- [ ] Draw stars with `gl.POINTS` as a sky pass before all world and overlay geometry.
+- [ ] Use camera rotation but remove camera translation so flying through the city produces no star parallax.
+- [ ] Keep stars visually behind all world geometry by disabling depth writes for the star pass and restoring them before the main pass.
+- [ ] Keep the sky background black and avoid an opaque full-screen layer that could hide the city.
+- [ ] Render only the currently selected sky pass: the Digital Rain sky or the Starfield point pass, never both.
+- [ ] Restore the main program, depth test, depth mask, blending, buffers, and vertex attributes after drawing stars.
+- [ ] Avoid buffer uploads, shader compilation, geometry allocation, or random generation during normal frames.
+- [ ] Delete Starfield buffers, shaders/programs, and other owned resources during renderer teardown.
+- [ ] Keep the star pass inert when disabled so the default-mode frame cost is effectively unchanged.
+
+### 5.4 Visual validation, documentation, and delivery
+
+- [ ] Add the new classic script to `index.html` and `tests.html` in the same deterministic position and synchronize the loading order in `AGENTS.md`.
+- [ ] Document the Starfield setting and its mutual exclusion with Digital Rain in `README.md`.
+- [ ] Verify the default `NONE` sky, Digital Rain, and Starfield separately in a WebGL-capable browser.
+- [ ] Verify that switching between Digital Rain and Starfield never shows a mixed or stale frame.
+- [ ] Verify Starfield with Analog Vision, navigation degradation, Signal Hunt markers, and the optional HUD.
+- [ ] Verify all stars remain white and that larger stars never exceed 10% of the generated population.
+- [ ] Verify desktop, narrow layouts, device-pixel-ratio changes, resize behavior, and WebGL point-size limits.
+- [ ] Verify Settings keyboard focus, touch activation, active styling, and `aria-pressed` state for both sky buttons.
+- [ ] Apply the required visible `REV` bump when the feature is implemented.
+
+### Acceptance criteria
+
+- Starfield is off by default and can be enabled from Settings as a WebGL-rendered sky.
+- Digital Rain and Starfield are mutually exclusive in engine state, UI state, and every rendered frame.
+- The sky contains only white point stars, with no more than 10% rendered slightly larger than the rest.
+- Stars remain fixed relative to camera rotation without translating or regenerating as the player flies.
+- Starfield introduces no animation and remains compatible with reduced-motion preferences.
+- World geometry, navigation warnings, and mission markers remain readable over the starfield.
+- Disabling or switching the effect leaves no stale star geometry on screen and default-mode performance remains unchanged.
+- The direct-open `file://` workflow and explicit classic-script dependency order remain intact.
+
+---
+
+## Milestone 6 — Collision Incident Records `[P1]`
+
+Goal: turn per-frame movement blocking into one stable gameplay incident per physical impact and expose a reliable collision history without changing flight resolution.
+
+### 6.1 Normalize collision incidents
 
 - [ ] Replace the engine's UI-facing `blocked` pulse with a structured collision incident while preserving `blocked` internally where it remains useful to flight resolution.
 - [ ] Classify incidents at minimum as `STRUCTURE` (walls, rooftops, and solid landmark parts) or `GROUND`.
@@ -381,44 +474,43 @@ Suggested incident shape:
 
 The exact field names may change. The important constraint is that consumers receive one stable incident per impact episode instead of inferring impacts from per-frame movement blocking.
 
-### 5.2 Add the visible collision counter
+### 6.2 Add the visible collision counter
 
 - [ ] Maintain a `collisionCount` for the current game run and increment it from normalized collision incidents only.
 - [ ] Include the count in throttled engine telemetry without exposing mutable flight internals.
 - [ ] Show a simple `COLLISIONS: N` text value in the persistent flight-status panel.
 - [ ] Keep the count readable when the optional HUD and Analog Vision are disabled.
 - [ ] Do not reset the count on `RESET POSITION`, navigation forced return, or mission abort.
-- [ ] Reset the count when a new game run starts: page load, city generation, mission start/replay, enabling Hull Integrity or Fuel Endurance, or `RESTART GAME`.
-- [ ] Verify that collision audio, the counter, and later damage handling each react exactly once to the same incident.
+- [ ] Reset the count when a new game run starts: page load, city generation, or mission start/replay.
+- [ ] Expose one explicit run-reset path that later survival rules can reuse without coupling collision state to those rules.
+- [ ] Verify that collision audio and the counter each react exactly once to the same incident.
 
-### 5.3 Move game-mode launch controls into a Missions menu
+### 6.3 Integration, documentation, and delivery
 
-- [ ] Replace the direct `START SIGNAL HUNT` control in the main panel with a `MISSIONS` button.
-- [ ] Add a retro-styled Missions dialog that initially lists Signal Hunt and can accept additional mode descriptors later without duplicating dialog wiring.
-- [ ] Move Signal Hunt start, replay, and abort actions into the Missions dialog.
-- [ ] Show each mode's name, short objective, current state, and available primary action as readable text.
-- [ ] Keep the compact active-mission telemetry visible outside the dialog while a mission is running.
-- [ ] Close the dialog after a successful mission start or replay and return focus to the appropriate flight control or canvas.
-- [ ] Ensure Missions and Settings cannot be open at the same time.
-- [ ] Support keyboard, pointer, and touch operation; close on `Escape` or backdrop click when safe; trap focus and restore it to `MISSIONS`.
-- [ ] Keep additional mission types beyond Signal Hunt out of this milestone; add real catalog entries only when their gameplay exists.
-- [ ] Cover catalog rendering, action routing, dialog focus behavior, and active-mode button states with browser tests.
+- [ ] Add any new classic script to both `index.html` and `tests.html` in the same deterministic dependency order and update `AGENTS.md` if that order changes.
+- [ ] Document the collision counter and its reset policy in `README.md`.
+- [ ] Manually verify wall, rooftop, landmark, and ground impacts at all three speed modes.
+- [ ] Verify that the collision count remains readable with the HUD and Analog Vision disabled.
+- [ ] Apply the required visible `REV` patch bump when the feature is implemented.
 
-Suggested mode descriptor boundary:
+### Acceptance criteria
 
-```js
-{
-  id: "signal-hunt",
-  label: "SIGNAL HUNT",
-  description: "Locate and scan all signals before time expires.",
-  getState(snapshot) {},
-  getActions(snapshot) {}
-}
-```
+- One physical impact episode emits one normalized incident regardless of refresh rate or how long movement remains held.
+- Corners and simultaneous axis blocks against one obstacle do not produce duplicate incidents.
+- Distinct impacts against different obstacles remain distinguishable.
+- `COLLISIONS: N` remains available in Free Flight and Signal Hunt without requiring optional visual effects.
+- Collision sound and counting consume the same incident without depending on each other's cooldown or enabled state.
+- Reset behavior is explicit, deterministic, and ready for later survival systems to reuse.
 
-This is a small UI catalog, not a general-purpose plugin or game-mode framework.
+---
 
-### 5.4 Add optional Hull Integrity rules
+## Milestone 7 — Optional Hull Integrity `[P1]`
+
+Goal: add an optional collision-driven damage and restart loop on top of the normalized incidents from Milestone 6 without making survival rules mandatory in Free Flight or Signal Hunt.
+
+Depends on: Milestone 6 collision incidents and run-reset contract.
+
+### 7.1 Add the Hull Integrity state model
 
 - [ ] Add a `HULL INTEGRITY` gameplay toggle to Settings; keep it disabled by default.
 - [ ] Allow Hull Integrity to run independently in Free Flight or alongside Signal Hunt.
@@ -428,6 +520,9 @@ This is a small UI catalog, not a general-purpose plugin or game-mode framework.
 - [ ] Expose current HP, maximum HP, enabled state, and game-over state through throttled telemetry.
 - [ ] Show `HULL: current/max` as persistent readable text only while the option is enabled.
 - [ ] Provide distinct but non-flashing critical styling at low HP and a text equivalent that does not rely on color alone.
+
+### 7.2 Add the Hull Integrity failure and restart flow
+
 - [ ] At zero HP, emit game over exactly once, clear held movement, stop mission timing/scanning, and keep the renderer and accessibility UI responsive.
 - [ ] Show a focus-managed `GAME OVER` dialog with the final collision count and a `RESTART GAME` button.
 - [ ] Make `RESTART GAME` restore full HP, clear the collision count and transient inputs, reset the camera, and restart the active Signal Hunt attempt if one was active.
@@ -446,7 +541,35 @@ Low-integrity threshold:  30 HP
 
 These values must be named configuration defaults rather than duplicated UI constants.
 
-### 5.5 Add optional Fuel Endurance rules
+### 7.3 Integration, documentation, and delivery
+
+- [ ] Add any new classic script to both `index.html` and `tests.html` in the same deterministic dependency order and update `AGENTS.md` if that order changes.
+- [ ] Document Hull Integrity, its reset policy, and the restart flow in `README.md`.
+- [ ] Manually verify Free Flight and Signal Hunt with Hull Integrity disabled and enabled.
+- [ ] Verify wall, rooftop, landmark, and ground damage at all three speed modes.
+- [ ] Verify the Game Over dialog on desktop and narrow layouts, including keyboard focus restoration.
+- [ ] Verify that HP, critical state, and Game Over remain readable with the optional HUD and Analog Vision disabled and in every sky mode.
+- [ ] Apply the required visible `REV` minor bump when the feature is implemented.
+
+### Acceptance criteria
+
+- Hull Integrity is off by default and can run independently in Free Flight or alongside Signal Hunt.
+- Damage is gradual, deterministic, and driven only by normalized collision incidents.
+- Sustained contact and audio cooldowns cannot cause duplicate damage.
+- Zero HP produces one accessible Game Over state and stops gameplay without freezing rendering or UI.
+- `RESTART GAME` starts a clean run with full HP, zero collisions, reset input, and a consistent mission attempt.
+- Disabling Hull Integrity removes its damage and failure rules without disabling collision records or changing the selected mission.
+- The direct-open `file://` workflow, keyboard/touch controls, and navigation safety behavior remain intact.
+
+---
+
+## Milestone 8 — Optional Fuel Endurance `[P1]`
+
+Goal: add an optional time-based fuel survival loop with deterministic recovery pickups while keeping fuel independent of the selected mission and compatible with Hull Integrity.
+
+Depends on: Milestone 7 shared Game Over and restart flow. Fuel depletion itself must remain independent of Hull Integrity state.
+
+### 8.1 Add the Fuel Endurance state model
 
 - [ ] Add a `FUEL ENDURANCE` gameplay toggle to Settings; keep it disabled by default.
 - [ ] Allow Fuel Endurance to run independently in Free Flight, alongside Signal Hunt, alongside Hull Integrity, or with both enabled together.
@@ -458,7 +581,7 @@ These values must be named configuration defaults rather than duplicated UI cons
 - [ ] Add non-flashing `LOW FUEL` and `FUEL CRITICAL` text states that do not rely on color or sound alone.
 - [ ] Emit optional low-fuel and collection audio cues only through the existing lazy audio context while `SOUND` is enabled.
 
-#### Fuel-barrel generation and collection
+### 8.2 Generate and collect fuel barrels
 
 - [ ] Maintain three active fuel barrels during an enabled run and replace a collected barrel after a short respawn delay.
 - [ ] Generate barrel locations from the city seed and a run seed so placements are varied between runs but reproducible in tests.
@@ -473,17 +596,17 @@ These values must be named configuration defaults rather than duplicated UI cons
 - [ ] Prevent immediate collection of a replacement by excluding the player's current pickup radius.
 - [ ] Clear pending respawns and stale pickup state on city generation, restart, disabling Fuel Endurance, and engine teardown.
 
-#### Barrel and locator-beam rendering
+### 8.3 Render barrels and locator beams
 
 - [ ] Render a small low-poly fuel barrel that matches the existing primitive wireframe city style and remains distinguishable from Signal Hunt beacons.
 - [ ] Render one straight bright-red vertical beam from the top of each active barrel toward a capped sky height.
-- [ ] Keep the beam red and readable against default rendering, Digital Rain, navigation degradation, and Analog Vision without turning it into a flashing effect.
+- [ ] Keep the beam red and readable against default rendering, Digital Rain, Starfield, navigation degradation, and Analog Vision without turning it into a flashing effect.
 - [ ] Use a static beam in reduced-motion mode; any optional pulse must be restrained and disabled when reduced motion is requested.
 - [ ] Batch barrel and beam geometry where practical and avoid allocating WebGL buffers every frame.
 - [ ] After the pickup pass, restore the main program, depth test, blending, bound buffers, and vertex attributes required by later rendering.
 - [ ] Remove barrel and beam geometry immediately after collection and rebuild it deterministically after respawn or city generation.
 
-#### Empty-fuel and combined-mode behavior
+### 8.4 Integrate empty-fuel and combined survival behavior
 
 - [ ] At zero fuel, emit Game Over exactly once with the text reason `FUEL EXHAUSTED`, clear held movement, and stop mission timing/scanning.
 - [ ] Reuse the focus-managed Game Over dialog introduced for Hull Integrity rather than creating competing overlays.
@@ -510,127 +633,84 @@ Beam height:            80 world units above the barrel
 
 These values are named configuration defaults and must be tuned through playtesting rather than duplicated across the engine, renderer, and UI.
 
-### 5.6 Integration, documentation, and delivery
+### 8.5 Integration, documentation, and delivery
 
 - [ ] Add any new classic script to both `index.html` and `tests.html` in the same deterministic dependency order and update `AGENTS.md` if that order changes.
-- [ ] Document the collision counter, Missions menu, Hull Integrity, Fuel Endurance, barrel collection, survival-resource reset policy, and restart flow in `README.md`.
-- [ ] Manually verify Free Flight and Signal Hunt with Hull Integrity and Fuel Endurance separately and together.
-- [ ] Manually verify wall, rooftop, landmark, and ground impacts at all three speed modes.
+- [ ] Document Fuel Endurance, barrel collection, fuel reset policy, and its use of the shared restart flow in `README.md`.
+- [ ] Manually verify Free Flight and Signal Hunt with Fuel Endurance enabled, both with and without Hull Integrity.
 - [ ] Manually verify ground and rooftop barrel placement, collection, replacement, low-fuel warnings, and zero-fuel Game Over.
-- [ ] Verify red locator beams with default rendering and every affected visual toggle, including reduced motion.
-- [ ] Verify the Missions, Settings, and Game Over dialogs on desktop and narrow layouts, including keyboard focus restoration.
-- [ ] Verify that optional effects and survival rules remain disabled by default and that essential collision, HP, fuel, and game-over text remains readable without the HUD.
-- [ ] Apply the required visible `REV` bump in every implementation change; if this milestone ships as one coherent feature set, treat it as a substantial minor release.
+- [ ] Verify red locator beams with default rendering, Digital Rain, Starfield, Analog Vision, navigation degradation, and reduced motion.
+- [ ] Verify the Settings and shared Game Over dialogs on desktop and narrow layouts, including keyboard focus restoration.
+- [ ] Verify that Fuel Endurance remains disabled by default and that fuel, warnings, and game-over text remain readable without the HUD.
+- [ ] Apply the required visible `REV` minor bump when the feature is implemented.
 
 ### Acceptance criteria
 
-- One physical impact episode increments the counter once regardless of refresh rate or how long movement remains held.
-- `COLLISIONS: N` remains available in Free Flight and Signal Hunt without requiring optional visual effects.
-- Signal Hunt can be started, replayed, and aborted from the Missions dialog, and no direct start button remains in the main panel.
-- The Missions dialog is ready to list future implemented modes without coupling their rules to DOM code.
-- Hull Integrity is off by default and can be enabled independently of the selected mission.
-- With Hull Integrity enabled, damage is gradual and deterministic, zero HP produces one accessible Game Over state, and `RESTART GAME` starts a clean run.
 - Fuel Endurance is off by default and can be combined independently with Free Flight, Signal Hunt, and Hull Integrity.
 - Fuel drains consistently across refresh rates, valid barrels replenish it without exceeding the maximum, and collected barrels are replaced without leaving stale state.
 - Every active barrel is reachable on valid ground or rooftop geometry and has a visible straight red beam pointing into the sky.
 - Zero fuel produces one accessible `FUEL EXHAUSTED` Game Over state, including deterministic behavior when hull and fuel fail together.
-- Collision counting, sound, damage, fuel, pickup respawn, reset behavior, and mission timing interact without duplicate reactions.
+- Fuel, pickup respawn, collision counting, Hull Integrity, mission timing, and restart behavior interact without duplicate reactions or competing Game Over states.
+- Disabling Fuel Endurance removes all fuel state and visuals without changing Hull Integrity or the selected mission.
 - The direct-open `file://` workflow, keyboard/touch controls, and existing navigation safety behavior remain intact.
 
 ---
 
-## Milestone 6 — Optional WebGL Starfield Sky `[P2]`
+## Milestone 9 — Missions Menu `[P1]`
 
-Goal: add a restrained white starfield as an optional WebGL-rendered sky while keeping Digital Rain and the default black sky unchanged and mutually exclusive.
+Goal: give implemented game modes a dedicated, accessible launch surface without changing Free Flight as the default or introducing gameplay for unimplemented modes.
 
-### 6.1 Add an exclusive sky-mode setting
+Depends on: the existing Signal Hunt actions and the collision, Hull Integrity, Fuel Endurance, and run-reset semantics established in Milestones 6–8.
 
-- [ ] Add a `STARFIELD` toggle button to the `DISPLAY EFFECTS` group in Settings; keep it disabled by default.
-- [ ] Replace independent sky booleans at the engine/UI boundary with one explicit sky mode: `NONE`, `DIGITAL_RAIN`, or `STARFIELD`.
-- [ ] Keep Analog Vision, HUD, sound, missions, Hull Integrity, and Fuel Endurance independent of the selected sky mode.
-- [ ] Enabling Starfield must atomically disable Digital Rain before the next rendered frame.
-- [ ] Enabling Digital Rain must atomically disable Starfield before the next rendered frame.
-- [ ] Pressing the active sky-mode button again must return the sky mode to `NONE`.
-- [ ] Reflect the resolved mode in telemetry and keep both Settings buttons, text labels, active styling, and `aria-pressed` values synchronized.
-- [ ] Prevent transient frames where both sky effects render during rapid pointer, touch, or keyboard activation.
-- [ ] Preserve the selected sky mode across camera reset and mission restart; return to `NONE` only through the relevant Settings action or normal application teardown.
-- [ ] Add pure and browser tests for every `NONE ↔ DIGITAL_RAIN ↔ STARFIELD` transition and for repeated rapid toggling.
+### 9.1 Move game-mode launch controls into a Missions menu
 
-Suggested public boundary:
+- [ ] Replace the direct `START SIGNAL HUNT` control in the main panel with a `MISSIONS` button.
+- [ ] Add a retro-styled Missions dialog that initially lists Signal Hunt and can accept additional mode descriptors later without duplicating dialog wiring.
+- [ ] Move Signal Hunt start, replay, and abort actions into the Missions dialog.
+- [ ] Show each mode's name, short objective, current state, and available primary action as readable text.
+- [ ] Keep the compact active-mission telemetry visible outside the dialog while a mission is running.
+- [ ] Close the dialog after a successful mission start or replay and return focus to the appropriate flight control or canvas.
+- [ ] Ensure Missions and Settings cannot be open at the same time.
+- [ ] Support keyboard, pointer, and touch operation; close on `Escape` or backdrop click when safe; trap focus and restore it to `MISSIONS`.
+- [ ] Keep additional mission types beyond Signal Hunt out of this milestone; add real catalog entries only when their gameplay exists.
+- [ ] Cover catalog rendering, action routing, dialog focus behavior, and active-mode button states with browser tests.
+
+Suggested mode descriptor boundary:
 
 ```js
-engine.setSkyMode("starfield");
-
-snapshot.effects.skyMode; // "none", "digitalRain", or "starfield"
+{
+  id: "signal-hunt",
+  label: "SIGNAL HUNT",
+  description: "Locate and scan all signals before time expires.",
+  getState(snapshot) {},
+  getActions(snapshot) {}
+}
 ```
 
-The exact API names may change, but sky exclusivity must be enforced by engine state rather than inferred from two DOM buttons.
+This is a small UI catalog, not a general-purpose plugin or game-mode framework.
 
-### 6.2 Generate a static white starfield
+### 9.2 Integration, documentation, and delivery
 
-- [ ] Implement Starfield as a dedicated effect/renderer subsystem, suggested as `src/effects/starfield.js`, using WebGL point geometry rather than DOM elements or a CSS background.
-- [ ] Generate a deterministic set of unit-sphere star directions from a named seed so the distribution can be pinned in tests.
-- [ ] Keep the star layout independent of the city seed, city regeneration, camera position, and mission seed.
-- [ ] Distribute stars over the surrounding sky without visible grid rows or a dense pole cluster.
-- [ ] Render every star as pure white with no hue, brightness, or saturation variation.
-- [ ] Render most stars at one small point size and allow no more than 10% of the total count to use one slightly larger point size.
-- [ ] Clamp requested point sizes to the device's `ALIASED_POINT_SIZE_RANGE` and keep the large class visibly restrained.
-- [ ] Keep the starfield static: no twinkle, flicker, trails, rotation, falling motion, or time-dependent random regeneration.
-- [ ] Use the same static presentation when `prefers-reduced-motion` is active.
-- [ ] Store size class explicitly or in deterministic vertex data; do not choose large stars randomly every frame.
-
-Initial tuning values:
-
-```text
-Star count:            700
-Large-star ratio:      0.10 maximum
-Normal point size:     1.25 CSS-equivalent pixels
-Large point size:      2.25 CSS-equivalent pixels
-Color:                 rgba(255, 255, 255, 1)
-Animation:             none
-```
-
-These are named tuning defaults. The final implementation may reduce the large-star ratio or point sizes after visual testing, but must never exceed the 10% large-star limit.
-
-### 6.3 Add the WebGL star pass
-
-- [ ] Create a small dedicated star shader/program and immutable vertex buffer; do not reuse the Digital Rain canvas texture.
-- [ ] Draw stars with `gl.POINTS` as a sky pass before ground, city, mission, and pickup geometry.
-- [ ] Use camera rotation but remove camera translation so flying through the city produces no star parallax.
-- [ ] Keep stars visually behind all world geometry by disabling depth writes for the star pass and restoring them before the main pass.
-- [ ] Keep the sky background black and avoid an opaque full-screen layer that could hide the city.
-- [ ] Render only the currently selected sky pass: the Digital Rain sky or the Starfield point pass, never both.
-- [ ] Restore the main program, depth test, depth mask, blending, buffers, and vertex attributes after drawing stars.
-- [ ] Avoid buffer uploads, shader compilation, geometry allocation, or random generation during normal frames.
-- [ ] Delete Starfield buffers, shaders/programs, and other owned resources during renderer teardown.
-- [ ] Keep the star pass inert when disabled so the default-mode frame cost is effectively unchanged.
-
-### 6.4 Visual validation, documentation, and delivery
-
-- [ ] Add the new classic script to `index.html` and `tests.html` in the same deterministic position and synchronize the loading order in `AGENTS.md`.
-- [ ] Document the Starfield setting and its mutual exclusion with Digital Rain in `README.md`.
-- [ ] Verify the default `NONE` sky, Digital Rain, and Starfield separately in a WebGL-capable browser.
-- [ ] Verify that switching between Digital Rain and Starfield never shows a mixed or stale frame.
-- [ ] Verify Starfield with Analog Vision, navigation degradation, Signal Hunt markers, fuel-barrel red beams, and the optional HUD.
-- [ ] Verify all stars remain white and that larger stars never exceed 10% of the generated population.
-- [ ] Verify desktop, narrow layouts, device-pixel-ratio changes, resize behavior, and WebGL point-size limits.
-- [ ] Verify Settings keyboard focus, touch activation, active styling, and `aria-pressed` state for both sky buttons.
-- [ ] Apply the required visible `REV` bump when the feature is implemented.
+- [ ] Document the Missions menu and Signal Hunt start, replay, and abort flow in `README.md`.
+- [ ] Manually verify the Missions dialog in idle, active, and complete Signal Hunt states.
+- [ ] Verify desktop and narrow layouts, keyboard focus trapping and restoration, pointer controls, and touch controls.
+- [ ] Verify that Settings, the Signal Hunt completion dialog, Game Over, and Missions cannot create competing focus traps.
+- [ ] Verify that starting, replaying, and aborting Signal Hunt through the dialog preserves the established Hull Integrity and Fuel Endurance run-reset policies.
+- [ ] Apply the required visible `REV` patch bump when the feature is implemented.
 
 ### Acceptance criteria
 
-- Starfield is off by default and can be enabled from Settings as a WebGL-rendered sky.
-- Digital Rain and Starfield are mutually exclusive in engine state, UI state, and every rendered frame.
-- The sky contains only white point stars, with no more than 10% rendered slightly larger than the rest.
-- Stars remain fixed relative to camera rotation without translating or regenerating as the player flies.
-- Starfield introduces no animation and remains compatible with reduced-motion preferences.
-- World geometry, navigation warnings, mission markers, and fuel-barrel beams remain readable over the starfield.
-- Disabling or switching the effect leaves no stale star geometry on screen and default-mode performance remains unchanged.
-- The direct-open `file://` workflow and explicit classic-script dependency order remain intact.
+- Signal Hunt can be started, replayed, and aborted from the Missions dialog.
+- No direct `START SIGNAL HUNT` control remains in the main panel.
+- Free Flight remains the default and does not require opening the dialog.
+- Active mission telemetry stays visible outside the dialog.
+- The catalog can list future implemented modes without coupling their rules to DOM code.
+- Missions actions preserve the existing collision, hull, fuel, and restart semantics.
+- Focus management and action availability remain correct for keyboard, pointer, and touch input.
 
 ---
 
-## Milestone 7 — Flight Feel and Camera Polish `[P2]`
+## Milestone 10 — Flight Feel and Camera Polish `[P2]`
 
 Goal: make movement feel more like a lightweight vehicle while preserving immediate keyboard and touch control.
 
@@ -663,7 +743,7 @@ Release damping:      under one second to settle
 
 ---
 
-## Milestone 8 — Canonical Release and Repository Presentation `[P2]`
+## Milestone 11 — Canonical Release and Repository Presentation `[P2]`
 
 Goal: make the repository understandable and playable within seconds of opening its GitHub page.
 

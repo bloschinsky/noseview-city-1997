@@ -2,7 +2,7 @@
 
 > [Roadmap index](../../TODO.md) · [Shared constraints and Definition of Done](shared.md)
 
-## Milestone 9 — Canvas 2D Wireframe Fallback `[P3 / Optional]`
+## Milestone 14 — Canvas 2D Wireframe Fallback `[P3 / Optional]`
 
 Goal: explore IE9/IE10-era compatibility without forcing the WebGL renderer to support browsers that never implemented WebGL.
 

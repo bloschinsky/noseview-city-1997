@@ -2,7 +2,7 @@
 
 > [Roadmap index](../../TODO.md) · [Shared constraints and Definition of Done](shared.md)
 
-## Milestone 8 — NOSEVIEW 1997: Trident Edition `[P3]`
+## Milestone 13 — NOSEVIEW 1997: Trident Edition `[P3]`
 
 Goal: produce a museum-grade Internet Explorer 11 build without degrading the canonical edition.
 

@@ -2,7 +2,7 @@
 
 > [Roadmap index](../../TODO.md) · [Shared constraints and Definition of Done](shared.md)
 
-## Milestone 7 — NOSEVIEW 1997: Vue Terminal `[P3]`
+## Milestone 12 — NOSEVIEW 1997: Vue Terminal `[P3]`
 
 Goal: practice Vue 3 architecture without replacing the canonical Vanilla edition.
 

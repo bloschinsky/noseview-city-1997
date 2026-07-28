@@ -101,9 +101,15 @@ Procedural landmarks
     ↓
 SIGNAL HUNT
     ↓
-Collision records, Missions menu, optional Hull Integrity, and Fuel Endurance
-    ↓
 Optional WebGL Starfield sky
+    ↓
+Collision incident records
+    ↓
+Optional Hull Integrity
+    ↓
+Optional Fuel Endurance
+    ↓
+Missions menu
     ↓
 Flight feel and camera polish
     ↓
