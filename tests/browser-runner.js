@@ -67,6 +67,37 @@
     }
   }
 
+  function runMissionTransmitterRendererCase() {
+    const canvas = root.document.createElement("canvas");
+    canvas.width = 64;
+    canvas.height = 64;
+    canvas.className = "test-canvas";
+    root.document.body.appendChild(canvas);
+    const renderer = Noseview.renderer.createRenderer(canvas, { reducedMotion: { matches: true } });
+    const gl = canvas.getContext("webgl");
+    const camera = { x: 0, y: 10, z: 8, yaw: 0, pitch: 0 };
+    const activeTarget = { position: { x: 0, y: 10, z: 0 }, status: "ACTIVE" };
+    try {
+      renderer.render(camera, {
+        time: 1000,
+        analogVisionEnabled: false,
+        digitalRainEnabled: false,
+        missionTargets: [activeTarget]
+      });
+      assert(gl.getError() === gl.NO_ERROR, "Active transmitter marker produced a WebGL error");
+      renderer.render(camera, {
+        time: 1000,
+        analogVisionEnabled: true,
+        digitalRainEnabled: false,
+        missionTargets: []
+      });
+      assert(gl.getError() === gl.NO_ERROR, "Clearing terminal mission markers produced a WebGL error");
+    } finally {
+      renderer.destroy();
+      canvas.remove();
+    }
+  }
+
   async function runForcedNavigationResetCase() {
     const canvas = root.document.createElement("canvas");
     canvas.width = 64;
@@ -487,6 +518,7 @@
       await runCase(testCase);
     }
     await runCase({ name: "engine lifecycle stops RAF and telemetry", run: runLifecycleCase });
+    await runCase({ name: "signal transmitter marker renders and clears cleanly", run: runMissionTransmitterRendererCase });
     await runCase({ name: "engine hard boundary resets flight and input", run: runForcedNavigationResetCase });
     await runCase({ name: "navigation audio stays lazy and schedules procedural cues", run: runNavigationAudioCase });
     await runCase({ name: "navigation warnings remain accessible with reduced motion", run: runNavigationUiCase });

@@ -243,7 +243,8 @@
       let missionTargets = [];
       try {
         mission.update(flightSnapshot.camera, elapsedTime);
-        missionTargets = typeof mission.getTargets === "function" ? mission.getTargets() : [];
+        // Acquired targets remain visible during a hunt, but terminal states leave no stale beacon markers.
+        missionTargets = mission.isActive() && typeof mission.getTargets === "function" ? mission.getTargets() : [];
         const missionEvents = mission.drainEvents();
         missionEvents.forEach(reportMissionEvent);
       } catch (error) {

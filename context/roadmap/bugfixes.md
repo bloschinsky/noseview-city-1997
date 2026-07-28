@@ -96,7 +96,7 @@ This document tracks confirmed bugs, their root causes, and the planned fixes.
 
 ---
 
-## BUG-004 — Signal Hunt beacon lacks a visible transmitter body `[P2]` — Planned
+## BUG-004 — Signal Hunt beacon lacks a visible transmitter body `[P2]` — Fixed in 1.8.3
 
 **Symptom:** The active Signal Hunt beacon is represented only by animated circular signal waves. There is no physical transmitter at the center of those waves, so the target reads as a floating effect rather than a small rooftop radio beacon.
 
@@ -110,15 +110,15 @@ This document tracks confirmed bugs, their root causes, and the planned fixes.
 
 **Fix plan:**
 
-- [ ] Add a small square wireframe transmitter box centered on the existing mission target anchor.
-- [ ] Add a short vertical antenna rising from the top center of the box.
-- [ ] Keep the existing circular waves centered on the antenna/transmitter so they clearly read as a signal emitted by the device.
-- [ ] Match the current cyan wireframe palette and preserve readable color distinction when Analog Vision is enabled.
-- [ ] Keep the marker lightweight by reusing the existing mission marker buffer or other renderer-owned geometry; do not allocate new WebGL buffers or typed arrays every frame when static box and antenna geometry can be reused.
-- [ ] Preserve depth testing, blending, active shader program, vertex attributes, and all renderer state expected by subsequent passes.
-- [ ] Ensure city regeneration, mission abort/completion, context loss, and renderer destruction do not leave stale marker geometry or WebGL resources.
-- [ ] Respect `prefers-reduced-motion`: the box and antenna remain visible when wave animation is reduced or made static.
-- [ ] Apply the required patch-version bump to the visible `CITY NAVIGATION TERMINAL // REV. X.Y.Z` label.
+- [x] Add a small square wireframe transmitter box centered on the existing mission target anchor.
+- [x] Add a short vertical antenna rising from the top center of the box.
+- [x] Keep the existing circular waves centered on the antenna/transmitter so they clearly read as a signal emitted by the device.
+- [x] Match the current cyan wireframe palette and preserve readable color distinction when Analog Vision is enabled.
+- [x] Keep the marker lightweight by reusing the existing mission marker buffer or other renderer-owned geometry; do not allocate new WebGL buffers or typed arrays every frame when static box and antenna geometry can be reused.
+- [x] Preserve depth testing, blending, active shader program, vertex attributes, and all renderer state expected by subsequent passes.
+- [x] Ensure city regeneration, mission abort/completion, context loss, and renderer destruction do not leave stale marker geometry or WebGL resources.
+- [x] Respect `prefers-reduced-motion`: the box and antenna remain visible when wave animation is reduced or made static.
+- [x] Apply the required patch-version bump to the visible `CITY NAVIGATION TERMINAL // REV. X.Y.Z` label.
 
 **Acceptance criteria:**
 
@@ -129,6 +129,11 @@ This document tracks confirmed bugs, their root causes, and the planned fixes.
 - Default rendering performance and unrelated city, navigation, HUD, and Digital Rain visuals remain unchanged.
 - Manual verification passes in a WebGL-capable browser for default, Analog Vision, Digital Rain, combined effects, and reduced-motion states.
 
+**Fix history:**
+
+- `1.8.2` — replaced the active-target diamond with an immutable local-space cyan wireframe transmitter box and short antenna, positioned at the mission anchor through the main shader's position offset. The existing four animated (or reduced-motion static) wave sets remain centered on that same anchor. The transmitter buffer is allocated once and deleted with the renderer; terminal mission states no longer render stale acquired markers.
+- `1.8.3` — moved every signal ring to the transmitter antenna crossbar and removed vertical rings, leaving only circles parallel to the ground plane.
+
 ---
 
 ## Checklist summary
@@ -138,4 +143,4 @@ This document tracks confirmed bugs, their root causes, and the planned fixes.
 | BUG-001 | Analog Vision makes all elements green | P1 | Fixed in 1.5.2 |
 | BUG-002 | Navigation Limit bypassed by steep vertical flight | P1 | Fixed in 1.5.3 |
 | BUG-003 | Signal Hunt beacon acquisition range is too large | P1 | Fixed in 1.8.1 |
-| BUG-004 | Signal Hunt beacon lacks a visible transmitter body | P2 | Planned |
+| BUG-004 | Signal Hunt beacon lacks a visible transmitter body | P2 | Fixed in 1.8.3 |

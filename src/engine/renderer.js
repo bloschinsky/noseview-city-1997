@@ -10,10 +10,11 @@
     attribute vec3 aPosition;
     uniform mat4 uProjection;
     uniform mat4 uView;
+    uniform vec3 uPositionOffset;
     varying float vDistance;
 
     void main() {
-      vec4 viewPosition = uView * vec4(aPosition, 1.0);
+      vec4 viewPosition = uView * vec4(aPosition + uPositionOffset, 1.0);
       vDistance = length(viewPosition.xyz);
       gl_Position = uProjection * viewPosition;
     }
@@ -87,6 +88,12 @@
       landmarkAccents: null
     };
     const missionMarkerBuffer = gl.createBuffer();
+    const missionTransmitter = {
+      halfWidth: 0.42,
+      halfHeight: 0.34,
+      antennaTop: 1.45,
+      antennaCrossbarY: 1.23
+    };
 
     function compileShader(type, source) {
       const shader = gl.createShader(type);
@@ -180,12 +187,35 @@
       return createGeometry(data, 5);
     }
 
+    function createMissionTransmitterGeometry() {
+      const data = [];
+      const { halfWidth, halfHeight, antennaTop, antennaCrossbarY } = missionTransmitter;
+      const bottom = -halfHeight;
+      const top = halfHeight;
+      const corners = [
+        [-halfWidth, bottom, -halfWidth], [halfWidth, bottom, -halfWidth],
+        [halfWidth, bottom, halfWidth], [-halfWidth, bottom, halfWidth],
+        [-halfWidth, top, -halfWidth], [halfWidth, top, -halfWidth],
+        [halfWidth, top, halfWidth], [-halfWidth, top, halfWidth]
+      ];
+      const edges = [
+        [0, 1], [1, 2], [2, 3], [3, 0],
+        [4, 5], [5, 6], [6, 7], [7, 4],
+        [0, 4], [1, 5], [2, 6], [3, 7]
+      ];
+      edges.forEach(edge => addLine(data, corners[edge[0]], corners[edge[1]]));
+      addLine(data, [0, top, 0], [0, antennaTop, 0]);
+      addLine(data, [-0.16, antennaCrossbarY, 0], [0.16, antennaCrossbarY, 0]);
+      return createGeometry(data, 3);
+    }
+
     const program = createProgram(vertexSource, fragmentSource, "Main");
     const skyProgram = createProgram(skyVertexSource, skyFragmentSource, "Sky");
     const locations = {
       position: gl.getAttribLocation(program, "aPosition"),
       projection: gl.getUniformLocation(program, "uProjection"),
       view: gl.getUniformLocation(program, "uView"),
+      positionOffset: gl.getUniformLocation(program, "uPositionOffset"),
       color: gl.getUniformLocation(program, "uColor"),
       fogNear: gl.getUniformLocation(program, "uFogNear"),
       fogFar: gl.getUniformLocation(program, "uFogFar"),
@@ -219,6 +249,8 @@
       addLine(roadData, [-53, 0.025, z + 2.2], [38, 0.025, z + 2.2]);
     }
     const roadLines = createGeometry(roadData, 3);
+    // Immutable local-space geometry is positioned per active target with uPositionOffset.
+    const missionTransmitterGeometry = createMissionTransmitterGeometry();
     const skyGeometry = createSkyGeometry(150, 24, 48);
     const skyTexture = gl.createTexture();
     if (!skyTexture) throw new Error("Unable to allocate the sky texture");
@@ -247,6 +279,7 @@
     gl.uniform1f(locations.fogNear, 54);
     gl.uniform1f(locations.fogFar, 155);
     gl.uniform1f(locations.skyEnabled, 0);
+    gl.uniform3f(locations.positionOffset, 0, 0, 0);
     gl.uniformMatrix4fv(locations.projection, false, projection);
     gl.useProgram(skyProgram);
     gl.uniformMatrix4fv(skyLocations.projection, false, projection);
@@ -304,48 +337,27 @@
       if (!geometry || geometry.count === 0) return;
       gl.bindBuffer(gl.ARRAY_BUFFER, geometry.buffer);
       gl.vertexAttribPointer(locations.position, 3, gl.FLOAT, false, 0, 0);
+      gl.uniform3f(locations.positionOffset, 0, 0, 0);
       gl.uniform4fv(locations.color, color);
       gl.drawArrays(primitive, 0, geometry.count);
     }
 
-    function missionRingPoint(target, radius, angle, plane) {
+    function missionRingPoint(target, radius, angle) {
       const cos = Math.cos(angle) * radius;
       const sin = Math.sin(angle) * radius;
-      if (plane === "XY") {
-        return [target.position.x + cos, target.position.y + sin, target.position.z];
-      }
-      if (plane === "YZ") {
-        return [target.position.x, target.position.y + cos, target.position.z + sin];
-      }
-      return [target.position.x + cos, target.position.y, target.position.z + sin];
+      return [target.position.x + cos, target.position.y + missionTransmitter.antennaCrossbarY, target.position.z + sin];
     }
 
-    function appendMissionRing(data, target, radius, segmentCount, plane) {
+    function appendMissionRing(data, target, radius, segmentCount) {
       for (let segment = 0; segment < segmentCount; segment += 1) {
         const startAngle = (segment / segmentCount) * Math.PI * 2;
         const endAngle = ((segment + 1) / segmentCount) * Math.PI * 2;
         addLine(
           data,
-          missionRingPoint(target, radius, startAngle, plane),
-          missionRingPoint(target, radius, endAngle, plane)
+          missionRingPoint(target, radius, startAngle),
+          missionRingPoint(target, radius, endAngle)
         );
       }
-    }
-
-    function appendActiveMarker(data, target) {
-      const x = target.position.x;
-      const y = target.position.y;
-      const z = target.position.z;
-      const radius = 0.42;
-      const top = [x, y + radius, z];
-      const bottom = [x, y - radius, z];
-      [
-        [x - radius, y, z], [x + radius, y, z],
-        [x, y, z - radius], [x, y, z + radius]
-      ].forEach(point => {
-        addLine(data, top, point);
-        addLine(data, bottom, point);
-      });
     }
 
     function appendAcquiredMarker(data, target) {
@@ -355,8 +367,7 @@
       const radius = 0.5;
       addLine(data, [x - radius, y, z - radius], [x + radius, y, z + radius]);
       addLine(data, [x - radius, y, z + radius], [x + radius, y, z - radius]);
-      appendMissionRing(data, target, 0.72, 12, "XZ");
-      appendMissionRing(data, target, 0.72, 12, "XY");
+      appendMissionRing(data, target, 0.72, 12);
     }
 
     function drawMissionMarkers(targets, time, frameState) {
@@ -369,16 +380,15 @@
       const phase = motionReduced ? 0.08 : ((time * 0.00065) % 1 + 1) % 1;
       const activeData = [];
       const acquiredData = [];
+      const activeTargets = [];
       targets.forEach(target => {
         if (!target || !target.position) return;
         if (target.status === "ACTIVE") {
-          appendActiveMarker(activeData, target);
+          activeTargets.push(target);
           for (let wave = 0; wave < waveCount; wave += 1) {
             const wavePhase = motionReduced ? (wave + 1) / (waveCount + 1) : (phase + wave / waveCount) % 1;
             const radius = innerRadius + wavePhase * (outerRadius - innerRadius);
-            appendMissionRing(activeData, target, radius, segmentCount, "XZ");
-            appendMissionRing(activeData, target, radius, segmentCount, "XY");
-            appendMissionRing(activeData, target, radius, segmentCount, "YZ");
+            appendMissionRing(activeData, target, radius, segmentCount);
           }
         } else if (target.status === "ACQUIRED") {
           appendAcquiredMarker(acquiredData, target);
@@ -387,18 +397,31 @@
       gl.bindBuffer(gl.ARRAY_BUFFER, missionMarkerBuffer);
       gl.vertexAttribPointer(locations.position, 3, gl.FLOAT, false, 0, 0);
       if (acquiredData.length > 0) {
+        gl.uniform3f(locations.positionOffset, 0, 0, 0);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(acquiredData), gl.DYNAMIC_DRAW);
         gl.uniform4fv(locations.color, [0.0, 0.82, 0.38, 0.72]);
         gl.drawArrays(gl.LINES, 0, acquiredData.length / 3);
       }
+      if (activeTargets.length > 0) {
+        const highContrast = frameState.digitalRainEnabled || frameState.analogVisionEnabled;
+        const pulse = motionReduced ? 1 : 0.92 + Math.sin(time * 0.006) * 0.08;
+        const activeColor = highContrast ? [1.0, 0.7 * pulse, 0.08, 1] : [0.2, 0.95 * pulse, 1.0, 1];
+        gl.bindBuffer(gl.ARRAY_BUFFER, missionTransmitterGeometry.buffer);
+        gl.vertexAttribPointer(locations.position, 3, gl.FLOAT, false, 0, 0);
+        gl.uniform4fv(locations.color, activeColor);
+        activeTargets.forEach(target => {
+          gl.uniform3f(locations.positionOffset, target.position.x, target.position.y, target.position.z);
+          gl.drawArrays(gl.LINES, 0, missionTransmitterGeometry.count);
+        });
+      }
       if (activeData.length > 0) {
+        gl.bindBuffer(gl.ARRAY_BUFFER, missionMarkerBuffer);
+        gl.vertexAttribPointer(locations.position, 3, gl.FLOAT, false, 0, 0);
+        gl.uniform3f(locations.positionOffset, 0, 0, 0);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(activeData), gl.DYNAMIC_DRAW);
         const highContrast = frameState.digitalRainEnabled || frameState.analogVisionEnabled;
         const pulse = motionReduced ? 1 : 0.92 + Math.sin(time * 0.006) * 0.08;
-        gl.uniform4fv(
-          locations.color,
-          highContrast ? [1.0, 0.7 * pulse, 0.08, 1] : [0.2, 0.95 * pulse, 1.0, 1]
-        );
+        gl.uniform4fv(locations.color, highContrast ? [1.0, 0.7 * pulse, 0.08, 1] : [0.2, 0.95 * pulse, 1.0, 1]);
         gl.drawArrays(gl.LINES, 0, activeData.length / 3);
       }
     }
@@ -498,6 +521,7 @@
       deleteGeometry(groundFaces);
       deleteGeometry(gridLines);
       deleteGeometry(roadLines);
+      deleteGeometry(missionTransmitterGeometry);
       deleteGeometry(skyGeometry);
       if (missionMarkerBuffer) gl.deleteBuffer(missionMarkerBuffer);
       gl.deleteTexture(skyTexture);
