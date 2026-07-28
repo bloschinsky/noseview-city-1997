@@ -61,7 +61,7 @@ This document tracks confirmed bugs, their root causes, and the planned fixes.
 
 ---
 
-## BUG-003 — Signal Hunt beacon acquisition range is too large `[P1]` — Planned
+## BUG-003 — Signal Hunt beacon acquisition range is too large `[P1]` — Fixed in 1.8.1
 
 **Symptom:** The active radio beacon can currently be acquired from up to `80` world units away. This lets the player complete a scan without approaching the transmitter closely enough, reducing the intended search-and-approach challenge.
 
@@ -75,13 +75,13 @@ This document tracks confirmed bugs, their root causes, and the planned fixes.
 
 **Fix plan:**
 
-- [ ] Reduce the default `SCAN_MAX_DISTANCE` from `80` to `40`, exactly 50% of the current value.
-- [ ] Keep the configurable `scanMaxDistance` option working so tests and future tuning can still override the default.
-- [ ] Do not change the acquisition cone, minimum scan distance, two-second lock duration, guidance, or mission timer.
-- [ ] Verify the signal-intensity falloff still reaches zero at the new maximum distance and remains bounded between `0` and `1`.
-- [ ] Add deterministic tests proving that a correctly aimed target just inside `40` units can lock, while the same target just beyond `40` units cannot start or advance the lock.
-- [ ] Verify leaving the new distance boundary clears any partial lock progress and re-entering requires a fresh uninterrupted lock.
-- [ ] Apply the required patch-version bump to the visible `CITY NAVIGATION TERMINAL // REV. X.Y.Z` label.
+- [x] Reduce the default `SCAN_MAX_DISTANCE` from `80` to `40`, exactly 50% of the current value.
+- [x] Keep the configurable `scanMaxDistance` option working so tests and future tuning can still override the default.
+- [x] Do not change the acquisition cone, minimum scan distance, two-second lock duration, guidance, or mission timer.
+- [x] Verify the signal-intensity falloff still reaches zero at the new maximum distance and remains bounded between `0` and `1`.
+- [x] Add deterministic tests proving that a correctly aimed target just inside `40` units can lock, while the same target just beyond `40` units cannot start or advance the lock.
+- [x] Verify leaving the new distance boundary clears any partial lock progress and re-entering requires a fresh uninterrupted lock.
+- [x] Apply the required patch-version bump to the visible `CITY NAVIGATION TERMINAL // REV. X.Y.Z` label.
 
 **Acceptance criteria:**
 
@@ -89,6 +89,10 @@ This document tracks confirmed bugs, their root causes, and the planned fixes.
 - A target farther than `40` world units may still provide guidance but cannot report `scan.inCone`, advance lock progress, or be acquired.
 - Custom `scanMaxDistance` values retain their existing behavior.
 - Existing Signal Hunt lifecycle, timer, event, replay, and completion tests continue to pass.
+
+**Fix history:**
+
+- `1.8.1` — reduced the default acquisition limit to `40` world units while preserving the `scanMaxDistance` override. Added deterministic coverage for the inclusive boundary, out-of-range guidance, zero intensity at/beyond the limit, lock reset on exit, and a fresh lock after re-entry.
 
 ---
 
@@ -133,5 +137,5 @@ This document tracks confirmed bugs, their root causes, and the planned fixes.
 | --- | --- | --- | --- |
 | BUG-001 | Analog Vision makes all elements green | P1 | Fixed in 1.5.2 |
 | BUG-002 | Navigation Limit bypassed by steep vertical flight | P1 | Fixed in 1.5.3 |
-| BUG-003 | Signal Hunt beacon acquisition range is too large | P1 | Planned |
+| BUG-003 | Signal Hunt beacon acquisition range is too large | P1 | Fixed in 1.8.1 |
 | BUG-004 | Signal Hunt beacon lacks a visible transmitter body | P2 | Planned |

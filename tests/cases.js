@@ -632,6 +632,57 @@
         }
       },
       {
+        name: "signal hunt default acquisition range ends at forty units",
+        run() {
+          const city = Noseview.city.generateCity(19810001);
+          const model = Noseview.signalHunt.createSignalHuntModel({ targetCount: 1 });
+          model.start(city, 777);
+          const target = model.getActiveTarget();
+          const cameraAtDistance = distance => ({
+            x: target.x + distance,
+            y: target.y,
+            z: target.z,
+            yaw: Math.atan2(-distance, 0),
+            pitch: 0
+          });
+          const justInside = cameraAtDistance(39.9);
+          const justOutside = cameraAtDistance(40.1);
+
+          model.update(justInside, 0.25);
+          let snapshot = model.getSnapshot();
+          assert(snapshot.scan.inCone, "Target just inside the default range did not enter the acquisition cone");
+          assert(snapshot.scan.intensity > 0 && snapshot.scan.intensity <= 1, "Signal intensity was not bounded inside the default range");
+          assertNear(snapshot.lock.progress, 0.125, 0.000001, "Target just inside the default range did not start locking");
+
+          model.update(justOutside, 0.25);
+          snapshot = model.getSnapshot();
+          assert(!snapshot.scan.inCone, "Target beyond the default range entered the acquisition cone");
+          assert(snapshot.scan.intensity === 0, "Signal intensity did not reach zero beyond the default range");
+          assert(snapshot.guidance.bearingDeltaDegrees !== null, "Out-of-range target stopped providing guidance");
+          assert(snapshot.lock.progress === 0, "Leaving the default range did not clear partial lock progress");
+
+          model.update(justInside, 0.25);
+          assertNear(model.getSnapshot().lock.progress, 0.125, 0.000001, "Re-entering the default range reused stale lock progress");
+          for (let index = 0; index < 7; index += 1) model.update(justInside, 0.25);
+          assert(model.getSnapshot().mode === "COMPLETE", "Target just inside the default range could not complete a fresh lock");
+
+          const atBoundary = Noseview.signalHunt.createSignalHuntModel({ targetCount: 1 });
+          atBoundary.start(city, 778);
+          const boundaryTarget = atBoundary.getActiveTarget();
+          const boundaryCamera = {
+            x: boundaryTarget.x + 40,
+            y: boundaryTarget.y,
+            z: boundaryTarget.z,
+            yaw: Math.atan2(-40, 0),
+            pitch: 0
+          };
+          atBoundary.update(boundaryCamera, 0.25);
+          snapshot = atBoundary.getSnapshot();
+          assert(snapshot.scan.inCone, "The forty-unit acquisition boundary was not inclusive");
+          assert(snapshot.scan.intensity === 0, "Signal intensity did not fall to zero at the acquisition boundary");
+        }
+      },
+      {
         name: "signal hunt timing is consistent across low and high frame rates",
         run() {
           const city = Noseview.city.generateCity(19810001);

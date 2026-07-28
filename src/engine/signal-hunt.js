@@ -147,7 +147,7 @@
     const TIMER_SECONDS = Number.isFinite(settings.timerSeconds) && settings.timerSeconds > 0 ? settings.timerSeconds : 120;
     const SCAN_CONE_DEGREES = Number.isFinite(settings.scanConeDegrees) && settings.scanConeDegrees > 0 ? settings.scanConeDegrees : 10;
     const SCAN_MIN_DISTANCE = Number.isFinite(settings.scanMinDistance) && settings.scanMinDistance >= 0 ? settings.scanMinDistance : 2.5;
-    const SCAN_MAX_DISTANCE = Number.isFinite(settings.scanMaxDistance) && settings.scanMaxDistance > 0 ? settings.scanMaxDistance : 80;
+    const SCAN_MAX_DISTANCE = Number.isFinite(settings.scanMaxDistance) && settings.scanMaxDistance > 0 ? settings.scanMaxDistance : 40;
     const MAX_DT = 0.25;
     const LOCK_DURATION_SECONDS = 2;
     const FEEDBACK_DURATION_SECONDS = 1.25;
