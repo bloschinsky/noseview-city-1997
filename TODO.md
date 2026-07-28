@@ -19,6 +19,7 @@ This file is the lightweight entry point for NOSEVIEW 1997 planning. Detailed mi
 | BUG-002 | [Bugfixes](context/roadmap/bugfixes.md) | Navigation Limit bypassed by steep vertical flight | P1 | Fixed in 1.5.3 |
 | BUG-003 | [Bugfixes](context/roadmap/bugfixes.md) | Reduce radio beacon acquisition range in Signal Hunt mode to 50% of its current value | P1 | Fixed in 1.8.1 |
 | BUG-004 | [Bugfixes](context/roadmap/bugfixes.md) | Improve the Signal Hunt beacon: add a small square transmitter box with an antenna emitting the existing circular signal | P2 | Fixed in 1.8.3 |
+| BUG-005 | [Bugfixes](context/roadmap/bugfixes.md) | Show a HUD message when the crosshair is aimed at a Signal Hunt beacon beyond its acquisition range | P1 | Planned |
 
 Shared constraints, deferred ideas, the global Definition of Done, required checks, and the recommended delivery sequence live in [Shared Roadmap Context](context/roadmap/shared.md).
 
