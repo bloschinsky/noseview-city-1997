@@ -74,6 +74,10 @@
     let destroyed = false;
     let contextLost = false;
     let skyTextureInitialized = false;
+    const reducedMotion = settings.reducedMotion ||
+      (typeof root.matchMedia === "function"
+        ? root.matchMedia("(prefers-reduced-motion: reduce)")
+        : { matches: false });
     let cityGeometry = {
       faces: null,
       edges: null,
@@ -304,35 +308,98 @@
       gl.drawArrays(primitive, 0, geometry.count);
     }
 
-    function drawMissionWaves(target, time) {
-      if (!target || !missionMarkerBuffer) return;
+    function missionRingPoint(target, radius, angle, plane) {
+      const cos = Math.cos(angle) * radius;
+      const sin = Math.sin(angle) * radius;
+      if (plane === "XY") {
+        return [target.position.x + cos, target.position.y + sin, target.position.z];
+      }
+      if (plane === "YZ") {
+        return [target.position.x, target.position.y + cos, target.position.z + sin];
+      }
+      return [target.position.x + cos, target.position.y, target.position.z + sin];
+    }
+
+    function appendMissionRing(data, target, radius, segmentCount, plane) {
+      for (let segment = 0; segment < segmentCount; segment += 1) {
+        const startAngle = (segment / segmentCount) * Math.PI * 2;
+        const endAngle = ((segment + 1) / segmentCount) * Math.PI * 2;
+        addLine(
+          data,
+          missionRingPoint(target, radius, startAngle, plane),
+          missionRingPoint(target, radius, endAngle, plane)
+        );
+      }
+    }
+
+    function appendActiveMarker(data, target) {
+      const x = target.position.x;
+      const y = target.position.y;
+      const z = target.position.z;
+      const radius = 0.42;
+      const top = [x, y + radius, z];
+      const bottom = [x, y - radius, z];
+      [
+        [x - radius, y, z], [x + radius, y, z],
+        [x, y, z - radius], [x, y, z + radius]
+      ].forEach(point => {
+        addLine(data, top, point);
+        addLine(data, bottom, point);
+      });
+    }
+
+    function appendAcquiredMarker(data, target) {
+      const x = target.position.x;
+      const y = target.position.y;
+      const z = target.position.z;
+      const radius = 0.5;
+      addLine(data, [x - radius, y, z - radius], [x + radius, y, z + radius]);
+      addLine(data, [x - radius, y, z + radius], [x + radius, y, z - radius]);
+      appendMissionRing(data, target, 0.72, 12, "XZ");
+      appendMissionRing(data, target, 0.72, 12, "XY");
+    }
+
+    function drawMissionMarkers(targets, time, frameState) {
+      if (!Array.isArray(targets) || targets.length === 0 || !missionMarkerBuffer) return;
       const segmentCount = 32;
       const waveCount = 4;
       const innerRadius = 0.35;
       const outerRadius = 4.5;
-      const phase = ((time * 0.00065) % 1 + 1) % 1;
-
+      const motionReduced = Boolean(reducedMotion.matches);
+      const phase = motionReduced ? 0.08 : ((time * 0.00065) % 1 + 1) % 1;
+      const activeData = [];
+      const acquiredData = [];
+      targets.forEach(target => {
+        if (!target || !target.position) return;
+        if (target.status === "ACTIVE") {
+          appendActiveMarker(activeData, target);
+          for (let wave = 0; wave < waveCount; wave += 1) {
+            const wavePhase = motionReduced ? (wave + 1) / (waveCount + 1) : (phase + wave / waveCount) % 1;
+            const radius = innerRadius + wavePhase * (outerRadius - innerRadius);
+            appendMissionRing(activeData, target, radius, segmentCount, "XZ");
+            appendMissionRing(activeData, target, radius, segmentCount, "XY");
+            appendMissionRing(activeData, target, radius, segmentCount, "YZ");
+          }
+        } else if (target.status === "ACQUIRED") {
+          appendAcquiredMarker(acquiredData, target);
+        }
+      });
       gl.bindBuffer(gl.ARRAY_BUFFER, missionMarkerBuffer);
       gl.vertexAttribPointer(locations.position, 3, gl.FLOAT, false, 0, 0);
-      for (let wave = 0; wave < waveCount; wave += 1) {
-        const wavePhase = (phase + wave / waveCount) % 1;
-        const radius = innerRadius + wavePhase * (outerRadius - innerRadius);
-        const alpha = 0.9 * (1 - wavePhase);
-        const data = new Float32Array(segmentCount * 2 * 3);
-        for (let segment = 0; segment < segmentCount; segment += 1) {
-          const startAngle = (segment / segmentCount) * Math.PI * 2;
-          const endAngle = ((segment + 1) / segmentCount) * Math.PI * 2;
-          const offset = segment * 6;
-          data[offset] = target.x + Math.cos(startAngle) * radius;
-          data[offset + 1] = target.y;
-          data[offset + 2] = target.z + Math.sin(startAngle) * radius;
-          data[offset + 3] = target.x + Math.cos(endAngle) * radius;
-          data[offset + 4] = target.y;
-          data[offset + 5] = target.z + Math.sin(endAngle) * radius;
-        }
-        gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
-        gl.uniform4fv(locations.color, [0.25, 0.9, 1.0, alpha]);
-        gl.drawArrays(gl.LINES, 0, segmentCount * 2);
+      if (acquiredData.length > 0) {
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(acquiredData), gl.DYNAMIC_DRAW);
+        gl.uniform4fv(locations.color, [0.0, 0.82, 0.38, 0.72]);
+        gl.drawArrays(gl.LINES, 0, acquiredData.length / 3);
+      }
+      if (activeData.length > 0) {
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(activeData), gl.DYNAMIC_DRAW);
+        const highContrast = frameState.digitalRainEnabled || frameState.analogVisionEnabled;
+        const pulse = motionReduced ? 1 : 0.92 + Math.sin(time * 0.006) * 0.08;
+        gl.uniform4fv(
+          locations.color,
+          highContrast ? [1.0, 0.7 * pulse, 0.08, 1] : [0.2, 0.95 * pulse, 1.0, 1]
+        );
+        gl.drawArrays(gl.LINES, 0, activeData.length / 3);
       }
     }
 
@@ -405,9 +472,9 @@
         frameState.analogVisionEnabled ? [1.0, 0.75, 0.2, 1] : [0.55, 0.96, 1.0, 1]
       );
 
-      // Mission target waves (subtle and lightweight)
-      if (frameState && frameState.missionTarget) {
-        drawMissionWaves(frameState.missionTarget, frameState.time || 0);
+      // Pending signals stay hidden; active and acquired markers are batched by status.
+      if (frameState && frameState.missionTargets) {
+        drawMissionMarkers(frameState.missionTargets, frameState.time || 0, frameState);
       }
     }
 

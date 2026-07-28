@@ -13,7 +13,7 @@
       <tr>
         <td>
           <h1 class="logo">NOSEVIEW 1997</h1>
-          <div class="subtitle">CITY NAVIGATION TERMINAL // REV. 1.7.0</div>
+          <div class="subtitle">CITY NAVIGATION TERMINAL // REV. 1.8.0</div>
           <div class="blink">● SYSTEM ONLINE ●</div>
         </td>
       </tr>
@@ -51,9 +51,14 @@
                 <strong id="navigation-message"></strong>
                 <span id="navigation-countdown" aria-hidden="true" hidden></span>
               </div>
-              <div id="mission-complete" class="mission-complete" role="status" aria-live="polite" aria-atomic="true" hidden>
+              <div id="mission-feedback" class="mission-feedback" role="status" aria-live="assertive" aria-atomic="true" hidden></div>
+              <div id="mission-complete" class="mission-complete" role="dialog" aria-modal="true" aria-labelledby="mission-complete-title" aria-describedby="mission-complete-stats" hidden>
                 <strong id="mission-complete-title">MISSION COMPLETE</strong>
                 <span id="mission-complete-stats"></span>
+                <div class="mission-complete-actions">
+                  <button id="mission-replay-button" type="button">REPLAY MISSION</button>
+                  <button id="mission-new-city-button" type="button">GENERATE NEW CITY</button>
+                </div>
               </div>
               <div id="webgl-error">
                 *** SYSTEM FAILURE ***<br><br>

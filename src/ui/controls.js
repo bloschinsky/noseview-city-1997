@@ -32,6 +32,9 @@
     const regenerateButton = documentRoot.getElementById("regen-button");
     const missionStartButton = documentRoot.getElementById("mission-start-button");
     const missionAbortButton = documentRoot.getElementById("mission-abort-button");
+    const missionComplete = documentRoot.getElementById("mission-complete");
+    const missionReplayButton = documentRoot.getElementById("mission-replay-button");
+    const missionNewCityButton = documentRoot.getElementById("mission-new-city-button");
     const cleanups = [];
     const activeControls = {};
     const heldKeys = new Set();
@@ -39,6 +42,8 @@
     Noseview.flight.CONTROL_NAMES.forEach(name => { activeControls[name] = false; });
     let destroyed = false;
     let previousSettingsFocus = null;
+    let previousCompletionFocus = null;
+    let completionOpen = false;
     let hudEnabled = true;
     let analogEnabled = false;
     let rainEnabled = false;
@@ -92,12 +97,50 @@
       const mission = snapshot.mission || { mode: "IDLE" };
       const mode = mission.mode || "IDLE";
       const active = mode === "ACTIVE";
-      const ended = mode === "SUCCESS" || mode === "FAILED" || mode === "ABORTED";
+      const ended = mode === "COMPLETE" || mode === "FAILED" || mode === "ABORTED";
       if (missionStartButton) {
         missionStartButton.disabled = active;
         missionStartButton.textContent = ended ? "REPLAY MISSION" : "START SIGNAL HUNT";
       }
       if (missionAbortButton) missionAbortButton.disabled = !active;
+      syncCompletionDialog(mode === "COMPLETE");
+    }
+
+    function getCompletionFocusables() {
+      if (!missionComplete) return [];
+      return Array.from(missionComplete.querySelectorAll("button:not(:disabled)"));
+    }
+
+    function isFocusAvailable(element) {
+      return Boolean(element) &&
+        typeof element.focus === "function" &&
+        !element.disabled &&
+        !element.closest("[hidden]");
+    }
+
+    function syncCompletionDialog(shouldOpen) {
+      if (!missionComplete || shouldOpen === completionOpen) return;
+      completionOpen = shouldOpen;
+      if (completionOpen) {
+        const settingsWasOpen = !settingsModal.hidden;
+        previousCompletionFocus = settingsWasOpen ? settingsButton : documentRoot.activeElement;
+        if (settingsWasOpen) {
+          settingsModal.hidden = true;
+          previousSettingsFocus = null;
+        }
+        clearInputs();
+        const focusables = getCompletionFocusables();
+        if (focusables[0]) focusables[0].focus();
+      } else {
+        const previousFocusAvailable = isFocusAvailable(previousCompletionFocus) &&
+          !missionComplete.contains(previousCompletionFocus) &&
+          previousCompletionFocus !== documentRoot.body;
+        const focusTarget = previousFocusAvailable
+          ? previousCompletionFocus
+          : (missionStartButton && !missionStartButton.disabled ? missionStartButton : missionAbortButton);
+        previousCompletionFocus = null;
+        if (focusTarget) focusTarget.focus();
+      }
     }
 
     function updateTelemetry(snapshot) {
@@ -136,7 +179,7 @@
     });
 
     function handleKeyDown(event) {
-      if (!settingsModal.hidden) return;
+      if (!settingsModal.hidden || completionOpen) return;
       if (keyMap[event.code]) {
         event.preventDefault();
         heldKeys.add(event.code);
@@ -169,6 +212,7 @@
     }
 
     function openSettings() {
+      if (completionOpen) return;
       previousSettingsFocus = documentRoot.activeElement;
       clearInputs();
       settingsModal.hidden = false;
@@ -208,10 +252,26 @@
       }
     }
 
+    function handleCompletionKeyDown(event) {
+      if (!completionOpen || event.key !== "Tab") return;
+      const focusables = getCompletionFocusables();
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (!first || !last) return;
+      if (event.shiftKey && documentRoot.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && documentRoot.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
     listen(settingsButton, "click", openSettings);
     listen(settingsClose, "click", closeSettings);
     listen(settingsModal, "click", handleSettingsClick);
     listen(settingsModal, "keydown", handleSettingsKeyDown);
+    if (missionComplete) listen(missionComplete, "keydown", handleCompletionKeyDown);
     listen(resetButton, "click", () => {
       clearInputs();
       engine.resetCamera();
@@ -227,6 +287,14 @@
     if (missionAbortButton) listen(missionAbortButton, "click", () => {
       clearInputs();
       engine.abortSignalHunt();
+    });
+    if (missionReplayButton) listen(missionReplayButton, "click", () => {
+      clearInputs();
+      engine.replaySignalHunt();
+    });
+    if (missionNewCityButton) listen(missionNewCityButton, "click", () => {
+      clearInputs();
+      engine.regenerateCity();
     });
     listen(speedButton, "click", () => {
       const speed = engine.cycleSpeed();
@@ -260,6 +328,9 @@
       suppressedKeys.clear();
       destroyed = true;
       settingsModal.hidden = true;
+      if (missionComplete) missionComplete.hidden = true;
+      completionOpen = false;
+      previousCompletionFocus = null;
       cleanups.splice(0).reverse().forEach(cleanup => cleanup());
     }
 

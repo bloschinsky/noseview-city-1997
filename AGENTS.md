@@ -10,6 +10,7 @@ NOSEVIEW 1997 is a dependency-free static WebGL experience. Preserve its dark 19
 - `styles.css` — responsive retro UI and overlay effects.
 - `src/namespace.js` — creates the single intentional `window.Noseview` application namespace.
 - `src/engine/` — pure math, city generation, flight/collisions, navigation boundaries, WebGL rendering, and the public engine factory.
+- `src/engine/signal-hunt.js` — deterministic Signal Hunt target generation, acquisition, timing, and mission lifecycle.
 - `src/effects/` — Analog Vision, Digital Rain, and navigation signal degradation implementations.
 - `src/audio/music.js` — lazy Web Audio synthesis and scheduling.
 - `src/ui/` — HUD formatting/rendering and page input/settings bindings.
@@ -29,14 +30,15 @@ All production scripts are IIFEs loaded together at the end of `index.html`, wit
 4. `src/engine/flight.js`
 5. `src/engine/navigation.js`
 6. `src/engine/renderer.js`
-7. `src/effects/analog-vision.js`
-8. `src/effects/digital-rain.js`
-9. `src/effects/navigation-signal.js`
-10. `src/audio/music.js`
-11. `src/ui/hud.js`
-12. `src/ui/controls.js`
-13. `src/engine/engine.js`
-14. `src/main.js`
+7. `src/engine/signal-hunt.js`
+8. `src/effects/analog-vision.js`
+9. `src/effects/digital-rain.js`
+10. `src/effects/navigation-signal.js`
+11. `src/audio/music.js`
+12. `src/ui/hud.js`
+13. `src/ui/controls.js`
+14. `src/engine/engine.js`
+15. `src/main.js`
 
 ## Implementation Notes
 

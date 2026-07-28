@@ -59,6 +59,7 @@
       analogVision,
       digitalRain,
       music,
+      reducedMotion,
       onTelemetry(snapshot) {
         if (hud) hud.update(snapshot);
         if (controls) controls.updateTelemetry(snapshot);

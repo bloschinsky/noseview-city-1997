@@ -287,32 +287,36 @@ Goal: turn free flight into a short replayable game without removing the origina
 
 ### 4.2 Signal generation
 
-- [ ] Generate between three and five signal beacons per mission.
+- [x] Generate between three and five signal beacons per mission.
 - [x] Select unique valid buildings or landmarks for beacon placement.
 - [x] Place beacons above roofs or landmark platforms, never inside solid geometry.
-- [ ] Exclude structures too close to the initial camera position.
+- [x] Exclude structures too close to the initial camera position.
 - [x] Store stable beacon IDs, positions, status, and host-structure metadata.
 - [x] Keep beacon generation deterministic for a given city and mission seed.
-- [ ] Ensure every generated mission is completable.
+- [x] Ensure every generated mission is completable.
+
+Default routes deterministically select three to five targets from the city and mission seed. Candidate anchors must be at least 14 horizontal world units from the helipad spawn and clear every solid collider by the camera radius; multi-seed route tests verify that every selected sequence can be completed.
 
 ### 4.3 Beacon rendering
 
 - [x] Add a low-poly beacon marker that fits the existing wireframe aesthetic.
-- [ ] Make the active signal readable against buildings, Digital Rain, and Analog Vision.
-- [ ] Add restrained pulse or flicker animation.
-- [ ] Provide a reduced-motion beacon presentation.
-- [ ] Avoid expensive new per-beacon draw calls when geometry can be batched.
+- [x] Make the active signal readable against buildings, Digital Rain, and Analog Vision.
+- [x] Add restrained pulse or flicker animation.
+- [x] Provide a reduced-motion beacon presentation.
+- [x] Avoid expensive new per-beacon draw calls when geometry can be batched.
+
+Active waves use a high-contrast color when Digital Rain or Analog Vision is enabled. Reduced motion replaces the pulse with fixed rings, while active and acquired markers are batched by status into at most two draw calls.
 
 ### 4.4 Target acquisition and scanning
 
-- [ ] Detect when an unscanned beacon is inside the crosshair acquisition cone.
-- [ ] Require continuous aim for two seconds to complete a scan.
-- [ ] Show scan progress in the HUD.
-- [ ] Cancel or decay progress when the target leaves the acquisition cone.
-- [ ] Prevent multiple beacons from being scanned simultaneously.
-- [ ] Mark completed beacons visually and exclude them from later acquisition.
-- [ ] Emit an optional audio cue only after user-enabled sound interaction.
-- [ ] Keep scan timing independent of frame rate.
+- [x] Detect when an unscanned beacon is inside the crosshair acquisition cone.
+- [x] Require continuous aim for two seconds to complete a scan.
+- [x] Show scan progress in the HUD.
+- [x] Cancel or decay progress when the target leaves the acquisition cone.
+- [x] Prevent multiple beacons from being scanned simultaneously.
+- [x] Mark completed beacons visually and exclude them from later acquisition.
+- [x] Emit an optional audio cue only after user-enabled sound interaction.
+- [x] Keep scan timing independent of frame rate.
 
 Initial tuning values:
 
@@ -329,12 +333,14 @@ These values are tuning defaults, not hard-coded architectural constraints.
 
 - [x] Show mission status while Signal Hunt is active.
 - [x] Show scanned count, total count, current timer, and scan progress.
-- [ ] Add `SIGNAL ACQUIRED` feedback after each successful scan.
-- [ ] Add a `MISSION COMPLETE` overlay after the final scan.
-- [ ] Show completion time and number of signals.
-- [ ] Provide controls to replay the mission or generate a new city.
-- [ ] Trap and restore focus correctly when the completion overlay is open.
-- [ ] Keep all essential mission information accessible as text.
+- [x] Add `SIGNAL ACQUIRED` feedback after each successful scan.
+- [x] Add a `MISSION COMPLETE` overlay after the final scan.
+- [x] Show completion time and number of signals.
+- [x] Provide controls to replay the mission or generate a new city.
+- [x] Trap and restore focus correctly when the completion overlay is open.
+- [x] Keep all essential mission information accessible as text.
+
+The completion dialog remains open until the pilot chooses replay or a new city. It traps keyboard focus, restores focus to an available mission control, and exposes the result and both actions as semantic text and buttons.
 
 ### Acceptance criteria
 

@@ -54,6 +54,7 @@
       };
       return {
         start() { return idle; },
+        reset() { return idle; },
         abort() { return idle; },
         restartAttempt() { return idle; },
         replay() { return idle; },
@@ -61,6 +62,7 @@
         getSnapshot() { return { ...idle }; },
         drainEvents() { return []; },
         isActive() { return false; },
+        getTargets() { return []; },
         destroy() {}
       };
     }
@@ -140,7 +142,10 @@
       reportError(error);
     }
 
-    renderer = Noseview.renderer.createRenderer(canvas, { onContextLost: handleContextLost });
+    renderer = Noseview.renderer.createRenderer(canvas, {
+      onContextLost: handleContextLost,
+      reducedMotion: settings.reducedMotion
+    });
 
     function installCity(nextCity) {
       renderer.replaceCity(nextCity.geometry);
@@ -188,7 +193,8 @@
 
     function render(time) {
       if (!running || destroyed || contextLost) return;
-      const deltaTime = Math.max(0, Math.min((time - previousTime) / 1000, 0.05));
+      const elapsedTime = Math.max(0, (time - previousTime) / 1000);
+      const deltaTime = Math.min(elapsedTime, 0.05);
       previousTime = time;
       const flightResult = flight.update(deltaTime);
 
@@ -234,10 +240,10 @@
       }
 
       // Mission update, target and events
-      let missionTarget = null;
+      let missionTargets = [];
       try {
-        mission.update(flightSnapshot.camera, deltaTime);
-        missionTarget = typeof mission.getActiveTarget === "function" ? mission.getActiveTarget() : null;
+        mission.update(flightSnapshot.camera, elapsedTime);
+        missionTargets = typeof mission.getTargets === "function" ? mission.getTargets() : [];
         const missionEvents = mission.drainEvents();
         missionEvents.forEach(reportMissionEvent);
       } catch (error) {
@@ -248,7 +254,7 @@
         time,
         analogVisionEnabled: effects.analogVision,
         digitalRainEnabled: effects.digitalRain,
-        missionTarget
+        missionTargets
       });
       if (effects.analogVision) analogVision.update(time, deltaTime, canvas);
 
@@ -304,6 +310,15 @@
         try {
           mission.replay(city);
           mission.drainEvents().forEach(reportMissionEvent);
+        } catch (error) {
+          reportError(error);
+        }
+      } else {
+        try {
+          if (typeof mission.reset === "function") {
+            mission.reset();
+            mission.drainEvents().forEach(reportMissionEvent);
+          }
         } catch (error) {
           reportError(error);
         }

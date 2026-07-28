@@ -506,8 +506,8 @@
         name: "signal hunt determinism and seed normalization",
         run() {
           const city = Noseview.city.generateCity(19810001);
-          const m1 = Noseview.signalHunt.createSignalHuntModel({ targetCount: 5 });
-          const m2 = Noseview.signalHunt.createSignalHuntModel({ targetCount: 5 });
+          const m1 = Noseview.signalHunt.createSignalHuntModel();
+          const m2 = Noseview.signalHunt.createSignalHuntModel();
           m1.start(city, 1234);
           m2.start(city, 1234);
           const a = m1.getActiveTarget();
@@ -515,6 +515,66 @@
           assert(a && b && a.x === b.x && a.y === b.y && a.z === b.z, "Same city+seed produced different first target");
           const snap = m1.getSnapshot();
           assert((snap.missionSeed >>> 0) === (1234 >>> 0), "Mission seed was not normalized / stored in snapshot");
+          assert(snap.totalTargets >= 3 && snap.totalTargets <= 5, "Default mission did not generate three to five targets");
+          assert(JSON.stringify(m1.getTargets()) === JSON.stringify(m2.getTargets()), "Same city+seed produced different target metadata");
+          assert(m1.getTargets()[0].status === "ACTIVE", "First target was not marked active");
+          assert(m1.getTargets().every(target => target.hostStructure && target.hostStructure.id), "Target host metadata was missing");
+        }
+      },
+      {
+        name: "signal hunt excludes the spawn area and creates completable routes",
+        run() {
+          const generatedCounts = new Set();
+          for (let cityOffset = 0; cityOffset < 12; cityOffset += 1) {
+            const city = Noseview.city.generateCity(19810001 + cityOffset);
+            const start = Noseview.city.getMissionStart(city);
+            const model = Noseview.signalHunt.createSignalHuntModel();
+            model.start(city, 700 + cityOffset);
+            const initialTargets = model.getTargets();
+            generatedCounts.add(initialTargets.length);
+            assert(initialTargets.length >= 3 && initialTargets.length <= 5, "Generated route did not contain three to five signals");
+            initialTargets.forEach(target => {
+              const distanceFromSpawn = Math.hypot(target.position.x - start.x, target.position.z - start.z);
+              assert(distanceFromSpawn >= 14, "Signal was placed too close to the initial camera");
+              const intersectsSolid = city.colliders.some(collider =>
+                target.position.x >= collider.minX - 0.6 && target.position.x <= collider.maxX + 0.6 &&
+                target.position.y >= collider.minY - 0.6 && target.position.y <= collider.maxY + 0.6 &&
+                target.position.z >= collider.minZ - 0.6 && target.position.z <= collider.maxZ + 0.6
+              );
+              assert(!intersectsSolid, "Signal anchor intersects solid geometry");
+            });
+            while (model.getSnapshot().mode === "ACTIVE") {
+              const target = model.getActiveTarget();
+              let camera = null;
+              for (let step = 0; step < 8 && !camera; step += 1) {
+                const angle = step / 8 * Math.PI * 2;
+                const candidate = {
+                  x: target.x + Math.cos(angle) * 10,
+                  y: target.y,
+                  z: target.z + Math.sin(angle) * 10
+                };
+                const blocked = city.colliders.some(collider =>
+                  candidate.x >= collider.minX - 0.6 && candidate.x <= collider.maxX + 0.6 &&
+                  candidate.y >= collider.minY - 0.6 && candidate.y <= collider.maxY + 0.6 &&
+                  candidate.z >= collider.minZ - 0.6 && candidate.z <= collider.maxZ + 0.6
+                );
+                if (!blocked) {
+                  const dx = target.x - candidate.x;
+                  const dy = target.y - candidate.y;
+                  const dz = target.z - candidate.z;
+                  camera = {
+                    ...candidate,
+                    yaw: Math.atan2(dx, -dz),
+                    pitch: Math.atan2(dy, Math.hypot(dx, dz))
+                  };
+                }
+              }
+              assert(camera, "Signal had no collision-free scan approach");
+              for (let updateIndex = 0; updateIndex < 8; updateIndex += 1) model.update(camera, 0.25);
+            }
+            assert(model.getSnapshot().mode === "COMPLETE", "Generated route could not be completed");
+          }
+          assert(generatedCounts.size === 3, "Deterministic route generation did not exercise all counts from three through five");
         }
       },
       {
@@ -556,7 +616,7 @@
           model.update(cam, 1.99);
           let snapshot = model.getSnapshot();
           assert(snapshot.acquiredTargets === 0, "Valid aim acquired before two seconds");
-          assertNear(snapshot.lock.progress, 0.04, 0.000001, "Lock progress did not use bounded frame time");
+          assertNear(snapshot.lock.progress, 0.125, 0.000001, "Lock progress did not use bounded frame time");
           model.update(cam, 0.01);
           snapshot = model.getSnapshot();
           assert(snapshot.acquiredTargets === 0, "A clamped frame incorrectly completed the lock");
@@ -569,6 +629,56 @@
           snapshot = model.getSnapshot();
           assert(snapshot.acquiredTargets === 0, "Invalid aim acquired the target");
           assert(snapshot.lock.progress === 0, "Invalid aim left stale lock progress");
+        }
+      },
+      {
+        name: "signal hunt timing is consistent across low and high frame rates",
+        run() {
+          const city = Noseview.city.generateCity(19810001);
+          const fastFrames = Noseview.signalHunt.createSignalHuntModel({ targetCount: 1, scanMinDistance: 0, scanMaxDistance: 200 });
+          const slowFrames = Noseview.signalHunt.createSignalHuntModel({ targetCount: 1, scanMinDistance: 0, scanMaxDistance: 200 });
+          fastFrames.start(city, 321);
+          slowFrames.start(city, 321);
+          const target = fastFrames.getActiveTarget();
+          const camera = {
+            x: target.x + 10,
+            y: target.y,
+            z: target.z,
+            yaw: Math.atan2(-10, 0),
+            pitch: 0
+          };
+          for (let index = 0; index < 45; index += 1) fastFrames.update(camera, 0.04);
+          for (let index = 0; index < 9; index += 1) slowFrames.update(camera, 0.2);
+          assertNear(fastFrames.getSnapshot().lock.progress, slowFrames.getSnapshot().lock.progress, 0.000001, "Frame rate changed in-progress lock timing");
+          fastFrames.update(camera, 0.21);
+          slowFrames.update(camera, 0.21);
+          const fastSnapshot = fastFrames.getSnapshot();
+          const slowSnapshot = slowFrames.getSnapshot();
+          assert(fastSnapshot.mode === "COMPLETE" && slowSnapshot.mode === "COMPLETE", "Frame rate changed the two-second lock outcome");
+          assertNear(fastSnapshot.completion.elapsedSeconds, slowSnapshot.completion.elapsedSeconds, 0.000001, "Frame rate changed completion timing");
+        }
+      },
+      {
+        name: "acquired signals expose feedback and completed marker status",
+        run() {
+          const city = Noseview.city.generateCity(19810001);
+          const model = Noseview.signalHunt.createSignalHuntModel({ targetCount: 2, scanMinDistance: 0, scanMaxDistance: 200 });
+          model.start(city, 99);
+          const target = model.getActiveTarget();
+          const camera = {
+            x: target.x + 10,
+            y: target.y,
+            z: target.z,
+            yaw: Math.atan2(-10, 0),
+            pitch: 0
+          };
+          for (let index = 0; index < 8; index += 1) model.update(camera, 0.25);
+          const snapshot = model.getSnapshot();
+          const targets = model.getTargets();
+          assert(snapshot.feedback === "SIGNAL ACQUIRED", "Successful scan did not expose text feedback");
+          assert(targets[0].status === "ACQUIRED" && targets[1].status === "ACTIVE", "Target statuses did not advance after acquisition");
+          for (let index = 0; index < 5; index += 1) model.update(camera, 0.25);
+          assert(model.getSnapshot().feedback === null, "Signal feedback did not clear after its bounded display time");
         }
       },
       {
@@ -613,7 +723,7 @@
           };
           for (let i = 0; i < 25; i += 1) model.update(camera, 0.08);
           const snapshot = model.getSnapshot();
-          assert(snapshot.mode === "SUCCESS", "Final lock did not complete the mission");
+          assert(snapshot.mode === "COMPLETE", "Final lock did not complete the mission");
           assert(snapshot.activeTargetId === null, "Completed mission retained an active target");
           assert(snapshot.completion.acquiredTargets === 1 && snapshot.completion.totalTargets === 1, "Completion counts were incorrect");
           assert(snapshot.completion.elapsedSeconds > 0, "Completion time was not recorded");
@@ -622,6 +732,7 @@
           const elapsed = snapshot.completion.elapsedSeconds;
           model.update(camera, 1);
           assert(model.getSnapshot().completion.elapsedSeconds === elapsed, "Completion statistics changed after success");
+          assert(!model.drainEvents().some(event => event.type === "mission-complete"), "Mission completion was emitted more than once");
         }
       },
       {
