@@ -347,7 +347,123 @@ These values are tuning defaults, not hard-coded architectural constraints.
 
 ---
 
-## Milestone 5 — Flight Feel and Camera Polish `[P2]`
+## Milestone 5 — Collision Records, Missions Menu, and Hull Integrity `[P1]`
+
+Goal: expose meaningful collision history, give game modes a dedicated launch surface, and add an optional hit-point ruleset without changing Free Flight or making Signal Hunt mandatory.
+
+### 5.1 Normalize collision incidents
+
+- [ ] Replace the engine's UI-facing `blocked` pulse with a structured collision incident while preserving `blocked` internally where it remains useful to flight resolution.
+- [ ] Classify incidents at minimum as `STRUCTURE` (walls, rooftops, and solid landmark parts) or `GROUND`.
+- [ ] Count one incident when the camera enters a new blocked contact; do not count every rendered frame while movement remains pressed against the same surface.
+- [ ] Re-arm incident detection only after contact ends or the camera makes a distinct impact with another collider.
+- [ ] Collapse simultaneous axis blocks against the same obstacle into one incident while preserving separate impacts against genuinely different obstacles.
+- [ ] Keep collision counting independent of the audio cue cooldown and independent of whether `SOUND` is enabled.
+- [ ] Route the existing collision cue from the normalized incident so audio and gameplay rules consume the same source event.
+- [ ] Add deterministic tests for a single impact, sustained contact, release and re-impact, corners, rooftops, ground contact, and different frame rates.
+
+Suggested incident shape:
+
+```js
+{
+  type: "collision",
+  surface: "STRUCTURE", // or "GROUND"
+  colliderId: "building-07-tier-1", // null for the ground plane
+  impactSequence: 12
+}
+```
+
+The exact field names may change. The important constraint is that consumers receive one stable incident per impact episode instead of inferring impacts from per-frame movement blocking.
+
+### 5.2 Add the visible collision counter
+
+- [ ] Maintain a `collisionCount` for the current game run and increment it from normalized collision incidents only.
+- [ ] Include the count in throttled engine telemetry without exposing mutable flight internals.
+- [ ] Show a simple `COLLISIONS: N` text value in the persistent flight-status panel.
+- [ ] Keep the count readable when the optional HUD and Analog Vision are disabled.
+- [ ] Do not reset the count on `RESET POSITION`, navigation forced return, or mission abort.
+- [ ] Reset the count when a new game run starts: page load, city generation, mission start/replay, enabling Hull Integrity, or `RESTART GAME`.
+- [ ] Verify that collision audio, the counter, and later damage handling each react exactly once to the same incident.
+
+### 5.3 Move game-mode launch controls into a Missions menu
+
+- [ ] Replace the direct `START SIGNAL HUNT` control in the main panel with a `MISSIONS` button.
+- [ ] Add a retro-styled Missions dialog that initially lists Signal Hunt and can accept additional mode descriptors later without duplicating dialog wiring.
+- [ ] Move Signal Hunt start, replay, and abort actions into the Missions dialog.
+- [ ] Show each mode's name, short objective, current state, and available primary action as readable text.
+- [ ] Keep the compact active-mission telemetry visible outside the dialog while a mission is running.
+- [ ] Close the dialog after a successful mission start or replay and return focus to the appropriate flight control or canvas.
+- [ ] Ensure Missions and Settings cannot be open at the same time.
+- [ ] Support keyboard, pointer, and touch operation; close on `Escape` or backdrop click when safe; trap focus and restore it to `MISSIONS`.
+- [ ] Keep additional mission types beyond Signal Hunt out of this milestone; add real catalog entries only when their gameplay exists.
+- [ ] Cover catalog rendering, action routing, dialog focus behavior, and active-mode button states with browser tests.
+
+Suggested mode descriptor boundary:
+
+```js
+{
+  id: "signal-hunt",
+  label: "SIGNAL HUNT",
+  description: "Locate and scan all signals before time expires.",
+  getState(snapshot) {},
+  getActions(snapshot) {}
+}
+```
+
+This is a small UI catalog, not a general-purpose plugin or game-mode framework.
+
+### 5.4 Add optional Hull Integrity rules
+
+- [ ] Add a `HULL INTEGRITY` gameplay toggle to Settings; keep it disabled by default.
+- [ ] Allow Hull Integrity to run independently in Free Flight or alongside Signal Hunt.
+- [ ] Implement the rules as a pure engine-side state model, suggested as `src/engine/integrity.js`, rather than calculating damage in DOM handlers.
+- [ ] Start a run at `100 HP` and subtract a tunable `10 HP` per normalized collision incident.
+- [ ] Add a short tunable damage guard only for distinct contacts produced by numerical jitter; never use a repeating timer that drains HP while resting against one surface.
+- [ ] Expose current HP, maximum HP, enabled state, and game-over state through throttled telemetry.
+- [ ] Show `HULL: current/max` as persistent readable text only while the option is enabled.
+- [ ] Provide distinct but non-flashing critical styling at low HP and a text equivalent that does not rely on color alone.
+- [ ] At zero HP, emit game over exactly once, clear held movement, stop mission timing/scanning, and keep the renderer and accessibility UI responsive.
+- [ ] Show a focus-managed `GAME OVER` dialog with the final collision count and a `RESTART GAME` button.
+- [ ] Make `RESTART GAME` restore full HP, clear the collision count and transient inputs, reset the camera, and restart the active Signal Hunt attempt if one was active.
+- [ ] Disabling Hull Integrity removes damage and game-over behavior without disabling the collision counter or changing the selected mission.
+- [ ] Starting or replaying a mission while Hull Integrity is enabled begins a fresh full-HP run; aborting a mission preserves current HP.
+- [ ] Generating a new city begins a fresh run, with full HP when Hull Integrity is enabled.
+- [ ] Add pure-logic tests for damage, sustained contact, the zero-HP boundary, single game-over emission, restart, toggle transitions, mission coexistence, and teardown.
+
+Initial tuning values:
+
+```text
+Maximum hull integrity:  100 HP
+Damage per incident:      10 HP
+Low-integrity threshold:  30 HP
+```
+
+These values must be named configuration defaults rather than duplicated UI constants.
+
+### 5.5 Integration, documentation, and delivery
+
+- [ ] Add any new classic script to both `index.html` and `tests.html` in the same deterministic dependency order and update `AGENTS.md` if that order changes.
+- [ ] Document the collision counter, Missions menu, Hull Integrity toggle, damage behavior, reset policy, and restart flow in `README.md`.
+- [ ] Manually verify Free Flight and Signal Hunt with Hull Integrity both off and on.
+- [ ] Manually verify wall, rooftop, landmark, and ground impacts at all three speed modes.
+- [ ] Verify the Missions, Settings, and Game Over dialogs on desktop and narrow layouts, including keyboard focus restoration.
+- [ ] Verify that optional effects remain disabled by default and that essential collision, HP, and game-over text remains readable without the HUD.
+- [ ] Apply the required visible `REV` bump in every implementation change; if this milestone ships as one coherent feature set, treat it as a substantial minor release.
+
+### Acceptance criteria
+
+- One physical impact episode increments the counter once regardless of refresh rate or how long movement remains held.
+- `COLLISIONS: N` remains available in Free Flight and Signal Hunt without requiring optional visual effects.
+- Signal Hunt can be started, replayed, and aborted from the Missions dialog, and no direct start button remains in the main panel.
+- The Missions dialog is ready to list future implemented modes without coupling their rules to DOM code.
+- Hull Integrity is off by default and can be enabled independently of the selected mission.
+- With Hull Integrity enabled, damage is gradual and deterministic, zero HP produces one accessible Game Over state, and `RESTART GAME` starts a clean run.
+- Collision counting, sound, damage, reset behavior, and mission timing all consume consistent events without duplicate reactions.
+- The direct-open `file://` workflow, keyboard/touch controls, and existing navigation safety behavior remain intact.
+
+---
+
+## Milestone 6 — Flight Feel and Camera Polish `[P2]`
 
 Goal: make movement feel more like a lightweight vehicle while preserving immediate keyboard and touch control.
 
@@ -380,7 +496,7 @@ Release damping:      under one second to settle
 
 ---
 
-## Milestone 6 — Canonical Release and Repository Presentation `[P2]`
+## Milestone 7 — Canonical Release and Repository Presentation `[P2]`
 
 Goal: make the repository understandable and playable within seconds of opening its GitHub page.
 

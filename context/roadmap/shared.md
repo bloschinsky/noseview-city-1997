@@ -7,14 +7,14 @@ These ideas are intentionally not part of the next release:
 - [ ] Optional mouse-look or pointer-lock mode.
 - [ ] Shareable city and mission seeds in the URL.
 - [ ] Local best-time storage.
-- [ ] Multiple mission types beyond Signal Hunt.
+- [ ] Multiple mission types beyond Signal Hunt; the Missions menu shell may land before those modes are implemented.
 - [ ] Additional low-poly structure families.
 - [ ] Optional full-screen navigation display.
 - [ ] Offline/PWA packaging.
 - [ ] Gamepad support.
 - [ ] Renderer profiling overlay.
 
-They should not block Milestones 0–6.
+They should not block Milestones 0–7.
 
 ---
 
@@ -100,6 +100,8 @@ World floor and navigation boundaries
 Procedural landmarks
     ↓
 SIGNAL HUNT
+    ↓
+Collision records, Missions menu, and optional Hull Integrity
     ↓
 Flight feel and camera polish
     ↓
