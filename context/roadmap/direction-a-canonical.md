@@ -347,9 +347,9 @@ These values are tuning defaults, not hard-coded architectural constraints.
 
 ---
 
-## Milestone 5 — Collision Records, Missions Menu, and Hull Integrity `[P1]`
+## Milestone 5 — Collision Records, Missions Menu, Hull Integrity, and Fuel Endurance `[P1]`
 
-Goal: expose meaningful collision history, give game modes a dedicated launch surface, and add an optional hit-point ruleset without changing Free Flight or making Signal Hunt mandatory.
+Goal: expose meaningful collision history, give missions a dedicated launch surface, and add independent optional hull-damage and fuel-survival rules without changing Free Flight or making Signal Hunt mandatory.
 
 ### 5.1 Normalize collision incidents
 
@@ -382,7 +382,7 @@ The exact field names may change. The important constraint is that consumers rec
 - [ ] Show a simple `COLLISIONS: N` text value in the persistent flight-status panel.
 - [ ] Keep the count readable when the optional HUD and Analog Vision are disabled.
 - [ ] Do not reset the count on `RESET POSITION`, navigation forced return, or mission abort.
-- [ ] Reset the count when a new game run starts: page load, city generation, mission start/replay, enabling Hull Integrity, or `RESTART GAME`.
+- [ ] Reset the count when a new game run starts: page load, city generation, mission start/replay, enabling Hull Integrity or Fuel Endurance, or `RESTART GAME`.
 - [ ] Verify that collision audio, the counter, and later damage handling each react exactly once to the same incident.
 
 ### 5.3 Move game-mode launch controls into a Missions menu
@@ -440,14 +440,80 @@ Low-integrity threshold:  30 HP
 
 These values must be named configuration defaults rather than duplicated UI constants.
 
-### 5.5 Integration, documentation, and delivery
+### 5.5 Add optional Fuel Endurance rules
+
+- [ ] Add a `FUEL ENDURANCE` gameplay toggle to Settings; keep it disabled by default.
+- [ ] Allow Fuel Endurance to run independently in Free Flight, alongside Signal Hunt, alongside Hull Integrity, or with both enabled together.
+- [ ] Implement fuel state and pickup lifecycle as a pure engine-side model, suggested as `src/engine/fuel.js`, rather than calculating depletion or collection in DOM handlers.
+- [ ] Start each run with `100 FUEL` and drain fuel continuously from bounded elapsed gameplay time so depletion is independent of frame rate and movement speed.
+- [ ] Pause depletion after Game Over and while the engine is stopped or destroyed; prevent a large restored-tab delta from emptying the tank instantly.
+- [ ] Expose current fuel, maximum fuel, low-fuel state, active pickup count, and game-over state through throttled telemetry.
+- [ ] Show `FUEL: current/max` as persistent readable text only while Fuel Endurance is enabled.
+- [ ] Add non-flashing `LOW FUEL` and `FUEL CRITICAL` text states that do not rely on color or sound alone.
+- [ ] Emit optional low-fuel and collection audio cues only through the existing lazy audio context while `SOUND` is enabled.
+
+#### Fuel-barrel generation and collection
+
+- [ ] Maintain three active fuel barrels during an enabled run and replace a collected barrel after a short respawn delay.
+- [ ] Generate barrel locations from the city seed and a run seed so placements are varied between runs but reproducible in tests.
+- [ ] Select from two explicit placement families: clear ground points and valid building-rooftop or landmark-platform anchors.
+- [ ] Keep ground barrels inside the navigation warning boundary, outside solid AABBs, away from the initial camera volume, and far enough from other active barrels.
+- [ ] Place rooftop barrels above a walkable roof or platform surface with enough horizontal margin for the camera collision radius and pickup trigger.
+- [ ] Exclude roofs, tower parts, and narrow ledges that cannot be approached without intersecting solid geometry.
+- [ ] Ensure every selected barrel is reachable and never spawn a barrel inside a building, below the ground, outside the navigation area, or directly on a Signal Hunt beacon.
+- [ ] Give every barrel a stable ID, placement type, position, host-structure metadata when applicable, and collection state.
+- [ ] Use a proximity trigger for collection; fuel barrels are pickups and must not add solid AABB colliders or increment the collision counter.
+- [ ] Refill by a tunable amount capped at maximum fuel, remove the collected barrel and its beam exactly once, then schedule one replacement at a different valid location.
+- [ ] Prevent immediate collection of a replacement by excluding the player's current pickup radius.
+- [ ] Clear pending respawns and stale pickup state on city generation, restart, disabling Fuel Endurance, and engine teardown.
+
+#### Barrel and locator-beam rendering
+
+- [ ] Render a small low-poly fuel barrel that matches the existing primitive wireframe city style and remains distinguishable from Signal Hunt beacons.
+- [ ] Render one straight bright-red vertical beam from the top of each active barrel toward a capped sky height.
+- [ ] Keep the beam red and readable against default rendering, Digital Rain, navigation degradation, and Analog Vision without turning it into a flashing effect.
+- [ ] Use a static beam in reduced-motion mode; any optional pulse must be restrained and disabled when reduced motion is requested.
+- [ ] Batch barrel and beam geometry where practical and avoid allocating WebGL buffers every frame.
+- [ ] After the pickup pass, restore the main program, depth test, blending, bound buffers, and vertex attributes required by later rendering.
+- [ ] Remove barrel and beam geometry immediately after collection and rebuild it deterministically after respawn or city generation.
+
+#### Empty-fuel and combined-mode behavior
+
+- [ ] At zero fuel, emit Game Over exactly once with the text reason `FUEL EXHAUSTED`, clear held movement, and stop mission timing/scanning.
+- [ ] Reuse the focus-managed Game Over dialog introduced for Hull Integrity rather than creating competing overlays.
+- [ ] If Hull Integrity and Fuel Endurance reach zero in the same update, show one Game Over state with deterministic combined failure reasons.
+- [ ] Make `RESTART GAME` restore all enabled survival resources, reset collision count and fuel barrels, reset the camera, and restart the active Signal Hunt attempt if one was active.
+- [ ] Starting or replaying a mission while Fuel Endurance is enabled begins a fresh full-fuel run with newly generated barrel placements.
+- [ ] Aborting a mission preserves current fuel and active barrels because Fuel Endurance is independent of the mission.
+- [ ] Generating a new city begins a fresh full-fuel run and generates pickups only from the new city's surfaces.
+- [ ] Disabling Fuel Endurance immediately stops depletion and removes all barrels, beams, warnings, and fuel-only Game Over behavior without changing Hull Integrity or the selected mission.
+- [ ] Add pure-logic tests for depletion, delta-time bounds, refill capping, deterministic placement, valid ground and rooftop anchors, collection, respawn, zero fuel, restart, combined Hull Integrity behavior, disable cleanup, and teardown.
+
+Initial tuning values:
+
+```text
+Maximum fuel:           100
+Fuel drain:             1 per second
+Low-fuel threshold:     25
+Fuel per barrel:        35
+Active barrels:         3
+Pickup radius:          2.25 world units
+Replacement delay:      5 seconds
+Beam height:            80 world units above the barrel
+```
+
+These values are named configuration defaults and must be tuned through playtesting rather than duplicated across the engine, renderer, and UI.
+
+### 5.6 Integration, documentation, and delivery
 
 - [ ] Add any new classic script to both `index.html` and `tests.html` in the same deterministic dependency order and update `AGENTS.md` if that order changes.
-- [ ] Document the collision counter, Missions menu, Hull Integrity toggle, damage behavior, reset policy, and restart flow in `README.md`.
-- [ ] Manually verify Free Flight and Signal Hunt with Hull Integrity both off and on.
+- [ ] Document the collision counter, Missions menu, Hull Integrity, Fuel Endurance, barrel collection, survival-resource reset policy, and restart flow in `README.md`.
+- [ ] Manually verify Free Flight and Signal Hunt with Hull Integrity and Fuel Endurance separately and together.
 - [ ] Manually verify wall, rooftop, landmark, and ground impacts at all three speed modes.
+- [ ] Manually verify ground and rooftop barrel placement, collection, replacement, low-fuel warnings, and zero-fuel Game Over.
+- [ ] Verify red locator beams with default rendering and every affected visual toggle, including reduced motion.
 - [ ] Verify the Missions, Settings, and Game Over dialogs on desktop and narrow layouts, including keyboard focus restoration.
-- [ ] Verify that optional effects remain disabled by default and that essential collision, HP, and game-over text remains readable without the HUD.
+- [ ] Verify that optional effects and survival rules remain disabled by default and that essential collision, HP, fuel, and game-over text remains readable without the HUD.
 - [ ] Apply the required visible `REV` bump in every implementation change; if this milestone ships as one coherent feature set, treat it as a substantial minor release.
 
 ### Acceptance criteria
@@ -458,7 +524,11 @@ These values must be named configuration defaults rather than duplicated UI cons
 - The Missions dialog is ready to list future implemented modes without coupling their rules to DOM code.
 - Hull Integrity is off by default and can be enabled independently of the selected mission.
 - With Hull Integrity enabled, damage is gradual and deterministic, zero HP produces one accessible Game Over state, and `RESTART GAME` starts a clean run.
-- Collision counting, sound, damage, reset behavior, and mission timing all consume consistent events without duplicate reactions.
+- Fuel Endurance is off by default and can be combined independently with Free Flight, Signal Hunt, and Hull Integrity.
+- Fuel drains consistently across refresh rates, valid barrels replenish it without exceeding the maximum, and collected barrels are replaced without leaving stale state.
+- Every active barrel is reachable on valid ground or rooftop geometry and has a visible straight red beam pointing into the sky.
+- Zero fuel produces one accessible `FUEL EXHAUSTED` Game Over state, including deterministic behavior when hull and fuel fail together.
+- Collision counting, sound, damage, fuel, pickup respawn, reset behavior, and mission timing interact without duplicate reactions.
 - The direct-open `file://` workflow, keyboard/touch controls, and existing navigation safety behavior remain intact.
 
 ---

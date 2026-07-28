@@ -101,7 +101,7 @@ Procedural landmarks
     ↓
 SIGNAL HUNT
     ↓
-Collision records, Missions menu, and optional Hull Integrity
+Collision records, Missions menu, optional Hull Integrity, and Fuel Endurance
     ↓
 Flight feel and camera polish
     ↓
