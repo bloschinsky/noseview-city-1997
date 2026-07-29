@@ -227,6 +227,7 @@
     const flight = {
       setControl() {},
       clearControls() {},
+      clearMotion() {},
       reset() {},
       setInitialCamera() {},
       setColliders() {},
@@ -308,6 +309,7 @@
     const flight = {
       setControl() {},
       clearControls() { clearCount += 1; },
+      clearMotion() {},
       reset() {},
       setInitialCamera() {},
       setColliders() {},
@@ -398,6 +400,7 @@
     const flight = {
       setControl() {},
       clearControls() {},
+      clearMotion() {},
       reset() {},
       setInitialCamera() {},
       setColliders() {},
@@ -1027,6 +1030,72 @@
     }
   }
 
+  async function runFlightControlsInputCase() {
+    const fixture = root.document.createElement("div");
+    fixture.innerHTML = `
+      <button id="settings-button"></button>
+      <div id="settings-modal" hidden><button id="settings-close"></button></div>
+      <button id="hud-button"></button><button id="analog-button"></button>
+      <button id="digital-rain-button"></button><button id="starfield-button"></button><button id="speed-button"></button>
+      <button id="sound-button"></button><button id="reset-button"></button><button id="regen-button"></button>
+      <button id="missions-button"></button><canvas id="gl-canvas" tabindex="-1"></canvas>
+      <button data-action="forward">FORWARD</button><button data-action="strafeRight">RIGHT</button>
+      <div id="missions-modal" hidden><button id="missions-close"></button><div id="missions-catalog"></div></div>
+      <div id="mission-complete" role="dialog" hidden><button id="mission-replay-button"></button><button id="mission-new-city-button"></button></div>
+      <div id="game-over" role="dialog" hidden><button id="game-restart-button"></button></div>`;
+    root.document.body.appendChild(fixture);
+    const states = {};
+    let clearMotionCalls = 0;
+    const engine = {
+      setControl(action, active) { states[action] = active; },
+      clearMotion() { clearMotionCalls += 1; },
+      resetCamera() {}, regenerateCity() {}, restartGame() {},
+      startSignalHunt() {}, abortSignalHunt() {}, replaySignalHunt() {},
+      cycleSpeed() { return { name: "NORMAL" }; },
+      setEffect(_name, enabled) { return enabled; },
+      setSkyMode(mode) { return mode; },
+      setSoundEnabled(enabled) { return Promise.resolve(enabled); }
+    };
+    const controls = Noseview.ui.createControls({
+      documentRoot: root.document,
+      windowRoot: root,
+      engine,
+      hud: { setVisible() {} }
+    });
+    const forward = fixture.querySelector("[data-action='forward']");
+    const right = fixture.querySelector("[data-action='strafeRight']");
+
+    function dispatchPointer(target, type, pointerId) {
+      target.setPointerCapture = function () {};
+      const event = new Event(type, { bubbles: true, cancelable: true });
+      Object.defineProperty(event, "pointerId", { value: pointerId });
+      target.dispatchEvent(event);
+    }
+
+    try {
+      root.dispatchEvent(new KeyboardEvent("keydown", { code: "KeyW", bubbles: true, cancelable: true }));
+      assert(states.forward === true, "Keyboard press did not request forward movement");
+      root.dispatchEvent(new KeyboardEvent("keyup", { code: "KeyW", bubbles: true, cancelable: true }));
+      assert(states.forward === false, "Keyboard release did not clear forward movement");
+
+      dispatchPointer(forward, "pointerdown", 11);
+      dispatchPointer(right, "pointerdown", 12);
+      assert(states.forward === true && states.strafeRight === true, "Simultaneous pointers did not preserve diagonal movement");
+      dispatchPointer(forward, "pointerup", 11);
+      assert(states.forward === false && states.strafeRight === true, "Releasing one pointer cleared another active pointer");
+      dispatchPointer(right, "pointerup", 12);
+      assert(states.strafeRight === false, "Final pointer release did not clear movement");
+
+      dispatchPointer(forward, "pointerdown", 13);
+      root.dispatchEvent(new Event("blur"));
+      assert(states.forward === false, "Window blur left a pointer control active");
+      assert(clearMotionCalls === 1, "Window blur did not clear inertial velocity and bank");
+    } finally {
+      controls.destroy();
+      fixture.remove();
+    }
+  }
+
   async function run() {
     for (const testCase of Noseview.tests.getCases()) {
       await runCase(testCase);
@@ -1043,6 +1112,7 @@
     await runCase({ name: "Missions menu renders and routes Signal Hunt actions", run: runMissionsMenuCase });
     await runCase({ name: "mission completion dialog traps and restores focus", run: runMissionCompletionFocusCase });
     await runCase({ name: "Hull Game Over dialog traps and restores focus", run: runHullGameOverFocusCase });
+    await runCase({ name: "flight controls preserve keyboard, pointer, multi-touch, and blur semantics", run: runFlightControlsInputCase });
     await runCase({ name: "mission events reach audio", run: runMissionAudioCase });
     const summary = root.document.getElementById("test-summary");
     summary.textContent = `${passed} passed, ${failed} failed`;

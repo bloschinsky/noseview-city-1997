@@ -44,7 +44,7 @@
     const onIntegrityEvent = typeof settings.onIntegrityEvent === "function" ? settings.onIntegrityEvent : function () {};
     const onFuelEvent = typeof settings.onFuelEvent === "function" ? settings.onFuelEvent : function () {};
     const onError = typeof settings.onError === "function" ? settings.onError : function () {};
-    const flight = Noseview.flight.createFlightModel();
+    const flight = Noseview.flight.createFlightModel({ reducedMotion: settings.reducedMotion });
     const integrity = Noseview.integrity.createIntegrityModel(settings.integrity);
     const fuel = Noseview.fuel.createFuelModel(settings.fuel);
     const navigation = Noseview.navigation.createNavigationModel(settings.navigation);
@@ -204,6 +204,7 @@
     function resetRun() {
       fuelCrashActive = false;
       collisionCount = 0;
+      flight.clearMotion();
       flight.resetCollisionIncidents();
       integrity.resetRun();
       if (fuel.getSnapshot().enabled && city) {
@@ -349,6 +350,7 @@
       if (fuelEvents.some(event => event.type === "fuel-empty")) {
         fuelCrashActive = true;
         flight.clearControls();
+        flight.clearMotion();
       }
       if (fuelCrashActive && typeof flight.descendToGround === "function") {
         const descent = flight.descendToGround(deltaTime, FUEL_CRASH_DESCENT_SPEED);
@@ -456,6 +458,11 @@
     function setControl(action, enabled) {
       assertAlive();
       flight.setControl(action, getSurvivalSnapshot().gameOver ? false : enabled);
+    }
+
+    function clearMotion() {
+      assertAlive();
+      flight.clearMotion();
     }
 
     function cycleSpeed() {
@@ -611,6 +618,7 @@
       resetCamera,
       regenerateCity,
       setControl,
+      clearMotion,
       cycleSpeed,
       setEffect,
       setSkyMode,

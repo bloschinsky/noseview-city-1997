@@ -606,12 +606,20 @@
       ];
       const eye = [camera.x, camera.y, camera.z];
       const target = [camera.x + forward[0], camera.y + forward[1], camera.z + forward[2]];
-      const view = Noseview.math.lookAt(eye, target, [0, 1, 0]);
+      const bank = Number.isFinite(camera.bank) ? camera.bank : 0;
+      const right = [Math.cos(camera.yaw), 0, Math.sin(camera.yaw)];
+      const baseUp = Noseview.math.cross(right, forward);
+      const up = [
+        baseUp[0] * Math.cos(bank) + right[0] * Math.sin(bank),
+        baseUp[1] * Math.cos(bank) + right[1] * Math.sin(bank),
+        baseUp[2] * Math.cos(bank) + right[2] * Math.sin(bank)
+      ];
+      const view = Noseview.math.lookAt(eye, target, up);
 
       gl.viewport(0, 0, canvas.width, canvas.height);
       gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
       const skyMode = frameState.skyMode || "none";
-      const rotationView = Noseview.math.lookAt([0, 0, 0], forward, [0, 1, 0]);
+      const rotationView = Noseview.math.lookAt([0, 0, 0], forward, up);
       if (skyMode === "digitalRain") {
         drawSky(rotationView);
       } else if (skyMode === "starfield") {

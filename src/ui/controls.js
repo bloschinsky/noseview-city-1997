@@ -110,12 +110,14 @@
     function clearInputs() {
       heldKeys.forEach(code => suppressedKeys.add(code));
       clearControls();
+      if (typeof engine.clearMotion === "function") engine.clearMotion();
     }
 
     function clearInputsForBlur() {
       heldKeys.clear();
       suppressedKeys.clear();
       clearControls();
+      if (typeof engine.clearMotion === "function") engine.clearMotion();
     }
 
     function updateToggleButton(button, label, enabled) {

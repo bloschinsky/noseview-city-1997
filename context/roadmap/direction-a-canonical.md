@@ -718,16 +718,18 @@ This is a small UI catalog, not a general-purpose plugin or game-mode framework.
 
 Goal: make movement feel more like a lightweight vehicle while preserving immediate keyboard and touch control.
 
-- [ ] Separate requested input from current movement velocity.
-- [ ] Add light acceleration and damping.
-- [ ] Keep the Slow, Normal, and Fast modes meaningfully different.
-- [ ] Add a small visual bank while yawing left or right.
-- [ ] Smoothly return bank to zero when turning stops.
-- [ ] Cap bank angle to prevent disorientation.
-- [ ] Clear velocity and bank on reset, mission restart, window blur, and forced boundary reset.
-- [ ] Ensure diagonal movement remains normalized.
-- [ ] Reduce or disable banking when reduced-motion is requested.
-- [ ] Test keyboard, pointer, and multi-touch control after inertia is added.
+Status: completed in `1.12.0`.
+
+- [x] Separate requested input from current movement velocity.
+- [x] Add light acceleration and damping.
+- [x] Keep the Slow, Normal, and Fast modes meaningfully different.
+- [x] Add a small visual bank while yawing left or right.
+- [x] Smoothly return bank to zero when turning stops.
+- [x] Cap bank angle to prevent disorientation.
+- [x] Clear velocity and bank on reset, mission restart, window blur, and forced boundary reset.
+- [x] Ensure diagonal movement remains normalized.
+- [x] Reduce or disable banking when reduced-motion is requested.
+- [x] Test keyboard, pointer, and multi-touch control after inertia is added.
 
 Suggested starting values:
 

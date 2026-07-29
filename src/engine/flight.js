@@ -9,7 +9,8 @@
     y: 10,
     z: 58,
     yaw: 0,
-    pitch: -10 * Math.PI / 180
+    pitch: -10 * Math.PI / 180,
+    bank: 0
   });
   const SPEED_MODES = Object.freeze([
     Object.freeze({ name: "SLOW", move: 5, turn: 42 }),
@@ -20,6 +21,12 @@
     "forward", "backward", "strafeLeft", "strafeRight",
     "turnLeft", "turnRight", "lookUp", "lookDown"
   ]);
+  const DEFAULT_MOTION = Object.freeze({
+    acceleration: 9,
+    damping: 7,
+    bankResponse: 10,
+    maximumBank: 4 * Math.PI / 180
+  });
 
   function copyCamera(camera) {
     return {
@@ -27,7 +34,8 @@
       y: camera.y,
       z: camera.z,
       yaw: camera.yaw,
-      pitch: camera.pitch
+      pitch: camera.pitch,
+      bank: Number.isFinite(camera.bank) ? camera.bank : 0
     };
   }
 
@@ -41,6 +49,11 @@
       ? groundY + cameraRadius
       : settings.minimumAltitude;
     const maxCollisionStep = settings.maxCollisionStep === undefined ? 0.2 : settings.maxCollisionStep;
+    const acceleration = settings.acceleration === undefined ? DEFAULT_MOTION.acceleration : settings.acceleration;
+    const damping = settings.damping === undefined ? DEFAULT_MOTION.damping : settings.damping;
+    const bankResponse = settings.bankResponse === undefined ? DEFAULT_MOTION.bankResponse : settings.bankResponse;
+    const maximumBank = settings.maximumBank === undefined ? DEFAULT_MOTION.maximumBank : settings.maximumBank;
+    const reducedMotion = settings.reducedMotion || false;
     if (!Number.isFinite(cameraRadius) || cameraRadius <= 0) {
       throw new RangeError("Camera radius must be a positive finite number");
     }
@@ -53,6 +66,14 @@
     if (minimumAltitude < groundY + cameraRadius) {
       throw new RangeError("Minimum altitude cannot place the camera below the ground plane");
     }
+    [acceleration, damping, bankResponse].forEach(value => {
+      if (!Number.isFinite(value) || value <= 0) {
+        throw new RangeError("Flight response rates must be positive finite numbers");
+      }
+    });
+    if (!Number.isFinite(maximumBank) || maximumBank < 0 || maximumBank > Math.PI / 2) {
+      throw new RangeError("Maximum bank must be a finite angle from zero to 90 degrees");
+    }
     initialCamera.y = Math.max(initialCamera.y, minimumAltitude);
     let camera = copyCamera(initialCamera);
     let colliders = (settings.colliders || []).slice();
@@ -60,7 +81,14 @@
     const controls = {};
     let activeContactKeys = new Set();
     let impactSequence = 0;
+    const velocity = { forward: 0, right: 0 };
     CONTROL_NAMES.forEach(name => { controls[name] = false; });
+
+    function prefersReducedMotion() {
+      if (typeof reducedMotion === "function") return Boolean(reducedMotion());
+      if (reducedMotion && typeof reducedMotion === "object") return Boolean(reducedMotion.matches);
+      return Boolean(reducedMotion);
+    }
 
     function assertControl(action) {
       if (!Object.prototype.hasOwnProperty.call(controls, action)) {
@@ -77,8 +105,15 @@
       CONTROL_NAMES.forEach(name => { controls[name] = false; });
     }
 
+    function clearMotion() {
+      velocity.forward = 0;
+      velocity.right = 0;
+      camera.bank = 0;
+    }
+
     function reset() {
       camera = copyCamera(initialCamera);
+      clearMotion();
       activeContactKeys.clear();
     }
 
@@ -100,6 +135,7 @@
       initialCamera.z = clamped.z;
       initialCamera.yaw = clamped.yaw;
       initialCamera.pitch = clamped.pitch;
+      initialCamera.bank = 0;
       return copyCamera(initialCamera);
     }
 
@@ -231,10 +267,22 @@
       return { blocked, contacts: Array.from(contacts.values()) };
     }
 
+    // Integrating the exponential response analytically keeps travelled distance
+    // stable when the same input is sampled at different refresh rates.
+    function approachVelocity(current, target, response, deltaTime) {
+      const decay = Math.exp(-response * deltaTime);
+      const next = target + (current - target) * decay;
+      const distance = target * deltaTime + (current - target) * (1 - decay) / response;
+      return {
+        next: target === 0 && Math.abs(next) < 0.02 ? 0 : next,
+        distance
+      };
+    }
+
     function update(deltaTime) {
       const mode = speedModes[speedIndex];
-      const turnStep = mode.turn * Math.PI / 180 * deltaTime;
-      const moveStep = mode.move * deltaTime;
+      const seconds = Math.max(0, Number(deltaTime) || 0);
+      const turnStep = mode.turn * Math.PI / 180 * seconds;
 
       if (controls.turnLeft) camera.yaw -= turnStep;
       if (controls.turnRight) camera.yaw += turnStep;
@@ -254,10 +302,38 @@
         moveForward /= magnitude;
         moveRight /= magnitude;
       }
+      const targetForward = moveForward * mode.move;
+      const targetRight = moveRight * mode.move;
+      const forwardMotion = approachVelocity(
+        velocity.forward,
+        targetForward,
+        targetForward === 0 ? damping : acceleration,
+        seconds
+      );
+      const rightMotion = approachVelocity(
+        velocity.right,
+        targetRight,
+        targetRight === 0 ? damping : acceleration,
+        seconds
+      );
+      velocity.forward = forwardMotion.next;
+      velocity.right = rightMotion.next;
+
+      const requestedTurn = Number(controls.turnRight) - Number(controls.turnLeft);
+      if (prefersReducedMotion()) {
+        camera.bank = 0;
+      } else {
+        const targetBank = requestedTurn * maximumBank;
+        const bankDecay = Math.exp(-bankResponse * seconds);
+        camera.bank = targetBank + (camera.bank - targetBank) * bankDecay;
+        if (targetBank === 0 && Math.abs(camera.bank) < 0.00001) camera.bank = 0;
+        camera.bank = Math.max(-maximumBank, Math.min(maximumBank, camera.bank));
+      }
+
       const movement = moveCamera(
-        (forward[0] * moveForward + rightX * moveRight) * moveStep,
-        forward[1] * moveForward * moveStep,
-        (forward[2] * moveForward + rightZ * moveRight) * moveStep
+        forward[0] * forwardMotion.distance + rightX * rightMotion.distance,
+        forward[1] * forwardMotion.distance,
+        forward[2] * forwardMotion.distance + rightZ * rightMotion.distance
       );
       const contacts = movement.contacts;
       const incidents = contacts
@@ -277,6 +353,7 @@
     }
 
     function descendToGround(deltaTime, descentSpeed) {
+      clearMotion();
       const seconds = Math.max(0, Number(deltaTime) || 0);
       const speed = Number.isFinite(descentSpeed) && descentSpeed > 0 ? descentSpeed : 18;
       const descent = moveCameraAlongAxis("y", -speed * seconds);
@@ -291,6 +368,7 @@
       return {
         camera: copyCamera(camera),
         speed: { ...speedModes[speedIndex] },
+        velocity: { forward: velocity.forward, right: velocity.right },
         minimumAltitude
       };
     }
@@ -298,6 +376,7 @@
     return {
       setControl,
       clearControls,
+      clearMotion,
       reset,
       setInitialCamera,
       setColliders,
@@ -313,6 +392,7 @@
     DEFAULT_CAMERA,
     SPEED_MODES,
     CONTROL_NAMES,
+    DEFAULT_MOTION,
     createFlightModel
   };
 }(window));

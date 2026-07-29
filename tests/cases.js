@@ -254,7 +254,7 @@
           assert(impact.incident.impactSequence === 1, "First collision sequence was not one");
           assert(flight.update(0.2).incidents.length === 0, "Sustained wall contact created a duplicate incident");
           flight.setControl("forward", false);
-          flight.update(0.1);
+          for (let index = 0; index < 10; index += 1) flight.update(0.1);
           flight.setControl("forward", true);
           const reImpact = flight.update(0.2);
           assert(reImpact.incidents.length === 1, "Released and repeated wall impact did not re-arm");
@@ -284,9 +284,10 @@
           flight.setControl("strafeRight", true);
           const eastImpact = flight.update(0.2);
           flight.setControl("strafeRight", false);
+          flight.clearMotion();
           flight.update(0.1);
           flight.setControl("strafeLeft", true);
-          const westImpact = flight.update(0.2);
+          const westImpact = flight.update(0.3);
           assert(eastImpact.incident.colliderId === east.partId, "East obstacle was not recorded");
           assert(westImpact.incident.colliderId === west.partId, "A different obstacle was not recorded separately");
           assert(westImpact.incident.impactSequence === eastImpact.incident.impactSequence + 1, "Different obstacles did not create distinct ordered impacts");
@@ -352,6 +353,72 @@
           const straightCamera = straight.getSnapshot().camera;
           const diagonalCamera = diagonal.getSnapshot().camera;
           assertNear(Math.hypot(straightCamera.x, straightCamera.y, straightCamera.z), Math.hypot(diagonalCamera.x, diagonalCamera.y, diagonalCamera.z), 0.000001, "Diagonal speed changed");
+        }
+      },
+      {
+        name: "flight acceleration and damping are smooth and frame-rate independent",
+        run() {
+          function runFlight(step, duration, releaseDuration) {
+            const flight = Noseview.flight.createFlightModel({
+              initialCamera: { x: 0, y: 10, z: 0, yaw: 0, pitch: 0 }
+            });
+            flight.setControl("forward", true);
+            for (let elapsed = 0; elapsed < duration - 0.000001; elapsed += step) flight.update(Math.min(step, duration - elapsed));
+            const moving = flight.getSnapshot();
+            flight.setControl("forward", false);
+            for (let elapsed = 0; elapsed < releaseDuration - 0.000001; elapsed += step) {
+              flight.update(Math.min(step, releaseDuration - elapsed));
+            }
+            return { moving, settled: flight.getSnapshot() };
+          }
+
+          const lowRate = runFlight(0.2, 0.6, 0.8);
+          const highRate = runFlight(0.01, 0.6, 0.8);
+          assert(lowRate.moving.velocity.forward > 0 && lowRate.moving.velocity.forward < lowRate.moving.speed.move, "Acceleration did not separate requested input from current velocity");
+          assert(Math.abs(lowRate.settled.velocity.forward) < 0.04, "Release damping did not settle in under one second");
+          assertNear(lowRate.moving.camera.z, highRate.moving.camera.z, 0.000001, "Acceleration distance changed with refresh rate");
+          assertNear(lowRate.settled.camera.z, highRate.settled.camera.z, 0.000001, "Damping distance changed with refresh rate");
+          assertNear(lowRate.settled.velocity.forward, highRate.settled.velocity.forward, 0.000001, "Velocity changed with refresh rate");
+        }
+      },
+      {
+        name: "speed modes retain distinct inertial top speeds",
+        run() {
+          const distances = Noseview.flight.SPEED_MODES.map((_mode, speedIndex) => {
+            const flight = Noseview.flight.createFlightModel({
+              initialCamera: { x: 0, y: 10, z: 0, yaw: 0, pitch: 0 },
+              speedIndex
+            });
+            flight.setControl("forward", true);
+            flight.update(1);
+            return Math.abs(flight.getSnapshot().camera.z);
+          });
+          assert(distances[0] < distances[1] && distances[1] < distances[2], "Slow, Normal, and Fast movement no longer differ");
+        }
+      },
+      {
+        name: "camera bank is capped, settles, resets, and respects reduced motion",
+        run() {
+          const maximumBank = Noseview.flight.DEFAULT_MOTION.maximumBank;
+          const flight = Noseview.flight.createFlightModel();
+          flight.setControl("turnRight", true);
+          flight.update(1);
+          assert(flight.getSnapshot().camera.bank > 0, "Yaw input did not create visual bank");
+          assert(flight.getSnapshot().camera.bank <= maximumBank, "Visual bank exceeded its cap");
+          flight.setControl("turnRight", false);
+          flight.update(0.8);
+          assert(Math.abs(flight.getSnapshot().camera.bank) < 0.0001, "Bank did not return smoothly to zero");
+          flight.setControl("forward", true);
+          flight.setControl("turnLeft", true);
+          flight.update(0.2);
+          flight.reset();
+          const reset = flight.getSnapshot();
+          assert(reset.velocity.forward === 0 && reset.velocity.right === 0 && reset.camera.bank === 0, "Reset retained velocity or bank");
+
+          const reduced = Noseview.flight.createFlightModel({ reducedMotion: true });
+          reduced.setControl("turnRight", true);
+          reduced.update(1);
+          assert(reduced.getSnapshot().camera.bank === 0, "Reduced motion did not disable camera banking");
         }
       },
       {
