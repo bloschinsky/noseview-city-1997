@@ -289,6 +289,100 @@
     }
   }
 
+  async function runHullIntegrityEngineCase() {
+    const canvas = root.document.createElement("canvas");
+    canvas.width = 64;
+    canvas.height = 64;
+    canvas.className = "test-canvas";
+    root.document.body.appendChild(canvas);
+    const telemetry = [];
+    const integrityEvents = [];
+    const originalFlightFactory = Noseview.flight.createFlightModel;
+    const originalRequestAnimationFrame = root.requestAnimationFrame;
+    const originalCancelAnimationFrame = root.cancelAnimationFrame;
+    let scheduledFrame = null;
+    let frameId = 0;
+    let updateCount = 0;
+    let clearCount = 0;
+    const camera = { x: 0, y: 10, z: 60, yaw: 0, pitch: 0 };
+    const flight = {
+      setControl() {},
+      clearControls() { clearCount += 1; },
+      reset() {},
+      setInitialCamera() {},
+      setColliders() {},
+      resetCollisionIncidents() { updateCount = 0; },
+      cycleSpeed() { return { name: "NORMAL", move: 10, turn: 65 }; },
+      update() {
+        updateCount += 1;
+        return {
+          blocked: true,
+          incidents: [{
+            type: "collision",
+            surface: "STRUCTURE",
+            colliderId: `test-contact-${updateCount}`,
+            impactSequence: updateCount
+          }]
+        };
+      },
+      getSnapshot() {
+        return { camera: { ...camera }, speed: { name: "NORMAL", move: 10, turn: 65 }, minimumAltitude: 0.6 };
+      }
+    };
+    let engine;
+    try {
+      Noseview.flight.createFlightModel = () => flight;
+      engine = Noseview.createNoseviewEngine(canvas, {
+        onTelemetry(snapshot) { telemetry.push(snapshot); },
+        onIntegrityEvent(event) { integrityEvents.push(event); }
+      });
+      Noseview.flight.createFlightModel = originalFlightFactory;
+      root.requestAnimationFrame = callback => {
+        scheduledFrame = callback;
+        frameId += 1;
+        return frameId;
+      };
+      root.cancelAnimationFrame = () => { scheduledFrame = null; };
+      engine.startSignalHunt(101);
+      engine.setHullIntegrityEnabled(true);
+      engine.start();
+      let frameTime = root.performance.now() + 120;
+      for (let index = 0; index < 10; index += 1) {
+        const callback = scheduledFrame;
+        scheduledFrame = null;
+        callback(frameTime);
+        frameTime += 120;
+      }
+      const failed = telemetry[telemetry.length - 1];
+      assert(failed.integrity.gameOver && failed.integrity.current === 0, "Ten impacts did not produce Hull Game Over");
+      assert(failed.collisionCount === 10, "Hull failure changed the normalized collision count");
+      assert(failed.mission.mode === "ACTIVE", "Hull failure changed the selected Signal Hunt");
+      const pausedTime = failed.mission.timeRemaining;
+      const callback = scheduledFrame;
+      scheduledFrame = null;
+      callback(frameTime);
+      const paused = telemetry[telemetry.length - 1];
+      assert(paused.mission.timeRemaining === pausedTime, "Mission timing continued after Hull Game Over");
+      assert(paused.collisionCount === 10, "Flight continued producing collisions after Hull Game Over");
+      assert(integrityEvents.filter(event => event.type === "game-over").length === 1, "Engine emitted Hull Game Over more than once");
+      assert(clearCount > 0, "Hull Game Over did not clear held flight controls");
+      engine.restartGame();
+      const restarted = telemetry[telemetry.length - 1];
+      assert(restarted.integrity.current === 100 && !restarted.integrity.gameOver, "Restart did not restore full hull");
+      assert(restarted.collisionCount === 0, "Restart did not clear collision records");
+      assert(restarted.mission.mode === "ACTIVE" && restarted.mission.timeRemaining === 120, "Restart did not restart the active mission attempt");
+      engine.setHullIntegrityEnabled(false);
+      const disabled = telemetry[telemetry.length - 1];
+      assert(!disabled.integrity.enabled && disabled.mission.mode === "ACTIVE", "Disabling Hull Integrity changed the mission");
+    } finally {
+      Noseview.flight.createFlightModel = originalFlightFactory;
+      root.requestAnimationFrame = originalRequestAnimationFrame;
+      root.cancelAnimationFrame = originalCancelAnimationFrame;
+      if (engine) await engine.destroy();
+      canvas.remove();
+    }
+  }
+
   function createFakeAudioContextHarness() {
     const counters = { contexts: 0, oscillators: 0, bufferSources: 0, stoppedSources: 0 };
 
@@ -464,6 +558,7 @@
         <span id="pos-x"></span><span id="pos-y"></span><span id="pos-z"></span>
         <span id="heading"></span><span id="pitch"></span><span id="speed"></span>
         <span id="fps"></span><span id="building-count"></span><span id="collision-count"></span>
+        <div id="hull-status-row" hidden>HULL: <span id="hull-integrity"><span class="hull-meter-fill"></span></span></div>
         <span id="hud-alt"></span><span id="hud-hdg"></span>
         <span id="mission-mode"></span><span id="mission-timer"></span>
         <span id="mission-progress"></span><span id="mission-lock"></span>
@@ -472,8 +567,10 @@
         <div id="mission-complete" hidden><strong id="mission-complete-title"></strong><span id="mission-complete-stats"></span>
           <button id="mission-replay-button"></button><button id="mission-new-city-button"></button>
         </div>
+        <div id="game-over" hidden><span id="game-over-reason"></span><span id="game-over-stats"></span></div>
         <canvas id="navigation-noise-canvas" width="32" height="24"></canvas>
         <div id="navigation-alert" hidden><strong id="navigation-message"></strong><span id="navigation-countdown" hidden></span></div>
+        <div id="hull-critical-alert" hidden></div>
         <span id="navigation-status" class="blink">ONLINE</span>
       </div>`;
     root.document.body.appendChild(fixture);
@@ -491,6 +588,7 @@
       fps: 60,
       buildingCount: 26,
       collisionCount: 7,
+      integrity: { enabled: true, current: 30, maximum: 100, low: true, criticalText: "HULL CRITICAL", gameOver: false },
       speed: { name: "NORMAL", move: 10 },
       effects: { hud: false, analogVision: false, digitalRain: false },
       sound: { available: true, enabled: false },
@@ -514,12 +612,23 @@
       assert(fixture.querySelector("#mission-feedback").textContent === "SIGNAL ACQUIRED", "Acquisition feedback was not rendered as text");
       assert(!fixture.querySelector("#mission-feedback").hidden, "Acquisition feedback was hidden");
       assert(fixture.querySelector("#collision-count").textContent === "7", "Collision counter was not rendered as persistent text");
+      assert(!fixture.querySelector("#hull-status-row").hidden, "Hull meter was hidden while the optional HUD was off");
+      assert(fixture.querySelector("#hull-integrity").style.getPropertyValue("--hull-level") === "30%", "Hull meter level changed");
+      assert(fixture.querySelector("#hull-integrity").getAttribute("aria-valuetext") === "30 of 100 hull integrity", "Hull meter lost its accessible value");
+      assert(!fixture.querySelector("#hull-critical-alert").hidden, "Low hull state lacked a flight-HUD warning");
       assert(!fixture.querySelector("#navigation-alert").hidden, "Warning text was hidden with HUD off");
       assert(fixture.querySelector("#navigation-message").textContent === "NAVIGATION LIMIT", "Warning label changed");
       assert(!fixture.querySelector("#navigation-status").classList.contains("blink"), "Warning status still blinks");
       assert(container.classList.contains("navigation-degraded"), "Warning noise was not enabled");
       assert(container.style.getPropertyValue("--navigation-noise-opacity") === "0.120", "Reduced-motion warning opacity changed");
       const staticFrame = fixture.querySelector("canvas").toDataURL();
+
+      snapshot.integrity = { ...snapshot.integrity, current: 0, gameOver: true };
+      hud.update(snapshot);
+      assert(!fixture.querySelector("#game-over").hidden, "Hull Game Over text was hidden");
+      assert(fixture.querySelector("#game-over-stats").textContent === "FINAL COLLISIONS: 7", "Game Over collision summary changed");
+      assert(fixture.querySelector("#hull-critical-alert").hidden, "Hull Critical remained behind Game Over");
+      snapshot.integrity = { ...snapshot.integrity, current: 100, low: false, criticalText: "", gameOver: false };
 
       snapshot.navigation = { state: "CRITICAL", distance: 125, degradation: 0.583, countdownSeconds: 1.25 };
       hud.update(snapshot);
@@ -640,6 +749,77 @@
     }
   }
 
+  async function runHullGameOverFocusCase() {
+    const fixture = root.document.createElement("div");
+    fixture.innerHTML = `
+      <button id="settings-button"></button>
+      <div id="settings-modal" hidden><button id="settings-close"></button><button id="hull-integrity-button"></button></div>
+      <button id="hud-button"></button><button id="analog-button"></button>
+      <button id="digital-rain-button"></button><button id="starfield-button"></button><button id="speed-button"></button>
+      <button id="sound-button"></button><button id="reset-button"></button>
+      <button id="regen-button"></button><button id="mission-start-button"></button>
+      <button id="mission-abort-button"></button>
+      <div id="mission-complete" role="dialog" hidden>
+        <button id="mission-replay-button">REPLAY</button>
+        <button id="mission-new-city-button">NEW CITY</button>
+      </div>
+      <div id="game-over" role="dialog" hidden><button id="game-restart-button">RESTART GAME</button></div>`;
+    root.document.body.appendChild(fixture);
+    let restartCalls = 0;
+    const engine = {
+      setControl() {},
+      resetCamera() {},
+      regenerateCity() {},
+      startSignalHunt() {},
+      abortSignalHunt() {},
+      replaySignalHunt() {},
+      restartGame() { restartCalls += 1; },
+      setHullIntegrityEnabled(enabled) { return enabled; },
+      cycleSpeed() { return { name: "NORMAL" }; },
+      setEffect(_name, enabled) { return enabled; },
+      setSkyMode(mode) { return mode; },
+      setSoundEnabled(enabled) { return Promise.resolve(enabled); }
+    };
+    const controls = Noseview.ui.createControls({
+      documentRoot: root.document,
+      windowRoot: root,
+      engine,
+      hud: { setVisible() {} }
+    });
+    const baseSnapshot = {
+      effects: { hud: true, analogVision: false, skyMode: "none" },
+      sound: { available: true, enabled: false },
+      speed: { name: "NORMAL" },
+      mission: { mode: "ACTIVE" },
+      integrity: { enabled: true, gameOver: false }
+    };
+    const settings = fixture.querySelector("#settings-modal");
+    const gameOver = fixture.querySelector("#game-over");
+    const restart = fixture.querySelector("#game-restart-button");
+    try {
+      fixture.querySelector("#settings-button").click();
+      assert(!settings.hidden, "Settings did not open before Hull failure");
+      controls.updateTelemetry({
+        ...baseSnapshot,
+        integrity: { enabled: true, gameOver: true }
+      });
+      assert(settings.hidden && !gameOver.hidden, "Hull Game Over did not replace Settings");
+      assert(root.document.activeElement === restart, "Hull Game Over did not focus Restart Game");
+      restart.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true }));
+      assert(root.document.activeElement === restart, "Single Game Over action did not trap forward focus");
+      restart.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", shiftKey: true, bubbles: true }));
+      assert(root.document.activeElement === restart, "Single Game Over action did not trap backward focus");
+      restart.click();
+      assert(restartCalls === 1, "Restart Game control did not call the engine");
+      controls.updateTelemetry(baseSnapshot);
+      assert(gameOver.hidden, "Restart did not close Hull Game Over");
+      assert(root.document.activeElement === fixture.querySelector("#settings-button"), "Game Over did not restore focus");
+    } finally {
+      controls.destroy();
+      fixture.remove();
+    }
+  }
+
   async function run() {
     for (const testCase of Noseview.tests.getCases()) {
       await runCase(testCase);
@@ -649,9 +829,11 @@
     await runCase({ name: "sky modes are exclusive during rapid transitions", run: runSkyModeCase });
     await runCase({ name: "engine hard boundary resets flight and input", run: runForcedNavigationResetCase });
     await runCase({ name: "normalized collision incidents drive audio and run telemetry once", run: runCollisionIncidentEngineCase });
+    await runCase({ name: "Hull Integrity failure pauses and restarts an active mission", run: runHullIntegrityEngineCase });
     await runCase({ name: "navigation audio stays lazy and schedules procedural cues", run: runNavigationAudioCase });
     await runCase({ name: "navigation warnings remain accessible with reduced motion", run: runNavigationUiCase });
     await runCase({ name: "mission completion dialog traps and restores focus", run: runMissionCompletionFocusCase });
+    await runCase({ name: "Hull Game Over dialog traps and restores focus", run: runHullGameOverFocusCase });
     await runCase({ name: "mission events reach audio", run: runMissionAudioCase });
     const summary = root.document.getElementById("test-summary");
     summary.textContent = `${passed} passed, ${failed} failed`;

@@ -514,24 +514,24 @@ Depends on: Milestone 6 collision incidents and run-reset contract.
 
 ### 7.1 Add the Hull Integrity state model
 
-- [ ] Add a `HULL INTEGRITY` gameplay toggle to Settings; keep it disabled by default.
-- [ ] Allow Hull Integrity to run independently in Free Flight or alongside Signal Hunt.
-- [ ] Implement the rules as a pure engine-side state model, suggested as `src/engine/integrity.js`, rather than calculating damage in DOM handlers.
-- [ ] Start a run at `100 HP` and subtract a tunable `10 HP` per normalized collision incident.
-- [ ] Add a short tunable damage guard only for distinct contacts produced by numerical jitter; never use a repeating timer that drains HP while resting against one surface.
-- [ ] Expose current HP, maximum HP, enabled state, and game-over state through throttled telemetry.
-- [ ] Show `HULL: current/max` as persistent readable text only while the option is enabled.
-- [ ] Provide distinct but non-flashing critical styling at low HP and a text equivalent that does not rely on color alone.
+- [x] Add a `HULL INTEGRITY` gameplay toggle to Settings; keep it disabled by default.
+- [x] Allow Hull Integrity to run independently in Free Flight or alongside Signal Hunt.
+- [x] Implement the rules as a pure engine-side state model, suggested as `src/engine/integrity.js`, rather than calculating damage in DOM handlers.
+- [x] Start a run at `100 HP` and subtract a tunable `10 HP` per normalized collision incident.
+- [x] Add a short tunable damage guard only for distinct contacts produced by numerical jitter; never use a repeating timer that drains HP while resting against one surface.
+- [x] Expose current HP, maximum HP, enabled state, and game-over state through throttled telemetry.
+- [x] Show Hull Integrity as a persistent readable progress bar only while the option is enabled.
+- [x] Provide distinct but non-flashing critical styling at low HP and a text equivalent that does not rely on color alone.
 
 ### 7.2 Add the Hull Integrity failure and restart flow
 
-- [ ] At zero HP, emit game over exactly once, clear held movement, stop mission timing/scanning, and keep the renderer and accessibility UI responsive.
-- [ ] Show a focus-managed `GAME OVER` dialog with the final collision count and a `RESTART GAME` button.
-- [ ] Make `RESTART GAME` restore full HP, clear the collision count and transient inputs, reset the camera, and restart the active Signal Hunt attempt if one was active.
-- [ ] Disabling Hull Integrity removes damage and game-over behavior without disabling the collision counter or changing the selected mission.
-- [ ] Starting or replaying a mission while Hull Integrity is enabled begins a fresh full-HP run; aborting a mission preserves current HP.
-- [ ] Generating a new city begins a fresh run, with full HP when Hull Integrity is enabled.
-- [ ] Add pure-logic tests for damage, sustained contact, the zero-HP boundary, single game-over emission, restart, toggle transitions, mission coexistence, and teardown.
+- [x] At zero HP, emit game over exactly once, clear held movement, stop mission timing/scanning, and keep the renderer and accessibility UI responsive.
+- [x] Show a focus-managed `GAME OVER` dialog with the final collision count and a `RESTART GAME` button.
+- [x] Make `RESTART GAME` restore full HP, clear the collision count and transient inputs, reset the camera, and restart the active Signal Hunt attempt if one was active.
+- [x] Disabling Hull Integrity removes damage and game-over behavior without disabling the collision counter or changing the selected mission.
+- [x] Starting or replaying a mission while Hull Integrity is enabled begins a fresh full-HP run; aborting a mission preserves current HP.
+- [x] Generating a new city begins a fresh run, with full HP when Hull Integrity is enabled.
+- [x] Add pure-logic tests for damage, sustained contact, the zero-HP boundary, single game-over emission, restart, toggle transitions, mission coexistence, and teardown.
 
 Initial tuning values:
 
@@ -545,13 +545,13 @@ These values must be named configuration defaults rather than duplicated UI cons
 
 ### 7.3 Integration, documentation, and delivery
 
-- [ ] Add any new classic script to both `index.html` and `tests.html` in the same deterministic dependency order and update `AGENTS.md` if that order changes.
-- [ ] Document Hull Integrity, its reset policy, and the restart flow in `README.md`.
-- [ ] Manually verify Free Flight and Signal Hunt with Hull Integrity disabled and enabled.
-- [ ] Verify wall, rooftop, landmark, and ground damage at all three speed modes.
-- [ ] Verify the Game Over dialog on desktop and narrow layouts, including keyboard focus restoration.
-- [ ] Verify that HP, critical state, and Game Over remain readable with the optional HUD and Analog Vision disabled and in every sky mode.
-- [ ] Apply the required visible `REV` minor bump when the feature is implemented.
+- [x] Add any new classic script to both `index.html` and `tests.html` in the same deterministic dependency order and update `AGENTS.md` if that order changes.
+- [x] Document Hull Integrity, its reset policy, and the restart flow in `README.md`.
+- [x] Manually verify Free Flight and Signal Hunt with Hull Integrity disabled and enabled.
+- [x] Verify wall, rooftop, landmark, and ground damage at all three speed modes.
+- [x] Verify the Game Over dialog on desktop and narrow layouts, including keyboard focus restoration.
+- [x] Verify that HP, critical state, and Game Over remain readable with the optional HUD and Analog Vision disabled and in every sky mode.
+- [x] Apply the required visible `REV` minor bump when the feature is implemented.
 
 ### Acceptance criteria
 

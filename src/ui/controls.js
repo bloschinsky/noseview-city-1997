@@ -29,6 +29,7 @@
     const starfieldButton = documentRoot.getElementById("starfield-button");
     const speedButton = documentRoot.getElementById("speed-button");
     const soundButton = documentRoot.getElementById("sound-button");
+    const hullIntegrityButton = documentRoot.getElementById("hull-integrity-button");
     const resetButton = documentRoot.getElementById("reset-button");
     const regenerateButton = documentRoot.getElementById("regen-button");
     const missionStartButton = documentRoot.getElementById("mission-start-button");
@@ -36,6 +37,8 @@
     const missionComplete = documentRoot.getElementById("mission-complete");
     const missionReplayButton = documentRoot.getElementById("mission-replay-button");
     const missionNewCityButton = documentRoot.getElementById("mission-new-city-button");
+    const gameOverDialog = documentRoot.getElementById("game-over");
+    const gameRestartButton = documentRoot.getElementById("game-restart-button");
     const cleanups = [];
     const activeControls = {};
     const heldKeys = new Set();
@@ -45,12 +48,15 @@
     let previousSettingsFocus = null;
     let previousCompletionFocus = null;
     let completionOpen = false;
+    let previousGameOverFocus = null;
+    let gameOverOpen = false;
     let hudEnabled = true;
     let analogEnabled = false;
     let skyMode = "none";
     let soundEnabled = false;
     let soundAvailable = true;
     let soundPending = false;
+    let hullIntegrityEnabled = false;
 
     function listen(target, type, handler, listenerOptions) {
       target.addEventListener(type, handler, listenerOptions);
@@ -106,7 +112,7 @@
       syncSkyMode(skyMode);
     }
 
-    function updateMissionButtons(snapshot) {
+    function updateMissionButtons(snapshot, blockedByGameOver) {
       const mission = snapshot.mission || { mode: "IDLE" };
       const mode = mission.mode || "IDLE";
       const active = mode === "ACTIVE";
@@ -116,7 +122,7 @@
         missionStartButton.textContent = ended ? "REPLAY MISSION" : "START SIGNAL HUNT";
       }
       if (missionAbortButton) missionAbortButton.disabled = !active;
-      syncCompletionDialog(mode === "COMPLETE");
+      syncCompletionDialog(mode === "COMPLETE" && !blockedByGameOver);
     }
 
     function getCompletionFocusables() {
@@ -156,6 +162,34 @@
       }
     }
 
+    function getGameOverFocusables() {
+      if (!gameOverDialog) return [];
+      return Array.from(gameOverDialog.querySelectorAll("button:not(:disabled)"));
+    }
+
+    function syncGameOverDialog(shouldOpen) {
+      if (!gameOverDialog || shouldOpen === gameOverOpen) return;
+      gameOverOpen = shouldOpen;
+      gameOverDialog.hidden = !shouldOpen;
+      if (shouldOpen) {
+        previousGameOverFocus = !settingsModal.hidden ? settingsButton : documentRoot.activeElement;
+        if (!settingsModal.hidden) {
+          settingsModal.hidden = true;
+          previousSettingsFocus = null;
+        }
+        clearInputs();
+        const focusables = getGameOverFocusables();
+        if (focusables[0]) focusables[0].focus();
+      } else {
+        const previousFocusAvailable = isFocusAvailable(previousGameOverFocus) &&
+          !gameOverDialog.contains(previousGameOverFocus) &&
+          previousGameOverFocus !== documentRoot.body;
+        const focusTarget = previousFocusAvailable ? previousGameOverFocus : settingsButton;
+        previousGameOverFocus = null;
+        if (focusTarget) focusTarget.focus();
+      }
+    }
+
     function updateTelemetry(snapshot) {
       if (destroyed) return;
       hudEnabled = snapshot.effects.hud;
@@ -163,11 +197,17 @@
       syncSkyMode(snapshot.effects.skyMode);
       soundEnabled = snapshot.sound.enabled;
       soundAvailable = snapshot.sound.available;
+      const integrity = snapshot.integrity || { enabled: false, gameOver: false };
+      hullIntegrityEnabled = Boolean(integrity.enabled);
       updateToggleButton(hudButton, "HUD", hudEnabled);
       updateToggleButton(analogButton, "ANALOG VISION", analogEnabled);
       updateSoundButton();
+      if (hullIntegrityButton) {
+        updateToggleButton(hullIntegrityButton, "HULL INTEGRITY", hullIntegrityEnabled);
+      }
       speedButton.textContent = `SPEED: ${snapshot.speed.name}`;
-      updateMissionButtons(snapshot);
+      updateMissionButtons(snapshot, Boolean(integrity.gameOver));
+      syncGameOverDialog(Boolean(integrity.gameOver));
     }
 
     documentRoot.querySelectorAll("[data-action]").forEach(button => {
@@ -191,7 +231,7 @@
     });
 
     function handleKeyDown(event) {
-      if (!settingsModal.hidden || completionOpen) return;
+      if (!settingsModal.hidden || completionOpen || gameOverOpen) return;
       if (keyMap[event.code]) {
         event.preventDefault();
         heldKeys.add(event.code);
@@ -224,7 +264,7 @@
     }
 
     function openSettings() {
-      if (completionOpen) return;
+      if (completionOpen || gameOverOpen) return;
       previousSettingsFocus = documentRoot.activeElement;
       clearInputs();
       settingsModal.hidden = false;
@@ -279,11 +319,27 @@
       }
     }
 
+    function handleGameOverKeyDown(event) {
+      if (!gameOverOpen || event.key !== "Tab") return;
+      const focusables = getGameOverFocusables();
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (!first || !last) return;
+      if (event.shiftKey && documentRoot.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && documentRoot.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
     listen(settingsButton, "click", openSettings);
     listen(settingsClose, "click", closeSettings);
     listen(settingsModal, "click", handleSettingsClick);
     listen(settingsModal, "keydown", handleSettingsKeyDown);
     if (missionComplete) listen(missionComplete, "keydown", handleCompletionKeyDown);
+    if (gameOverDialog) listen(gameOverDialog, "keydown", handleGameOverKeyDown);
     listen(resetButton, "click", () => {
       clearInputs();
       engine.resetCamera();
@@ -307,6 +363,10 @@
     if (missionNewCityButton) listen(missionNewCityButton, "click", () => {
       clearInputs();
       engine.regenerateCity();
+    });
+    if (gameRestartButton) listen(gameRestartButton, "click", () => {
+      clearInputs();
+      engine.restartGame();
     });
     listen(speedButton, "click", () => {
       const speed = engine.cycleSpeed();
@@ -334,6 +394,10 @@
       soundPending = false;
       updateSoundButton();
     });
+    if (hullIntegrityButton) listen(hullIntegrityButton, "click", () => {
+      hullIntegrityEnabled = engine.setHullIntegrityEnabled(!hullIntegrityEnabled);
+      updateToggleButton(hullIntegrityButton, "HULL INTEGRITY", hullIntegrityEnabled);
+    });
 
     function destroy() {
       if (destroyed) return;
@@ -343,8 +407,11 @@
       destroyed = true;
       settingsModal.hidden = true;
       if (missionComplete) missionComplete.hidden = true;
+      if (gameOverDialog) gameOverDialog.hidden = true;
       completionOpen = false;
+      gameOverOpen = false;
       previousCompletionFocus = null;
+      previousGameOverFocus = null;
       cleanups.splice(0).reverse().forEach(cleanup => cleanup());
     }
 

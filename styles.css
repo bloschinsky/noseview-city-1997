@@ -236,6 +236,26 @@
     #navigation-status.is-warning { color: #ffff00; }
     #navigation-status.is-critical { color: #ff6633; }
 
+    .hull-critical-alert {
+      position: absolute;
+      z-index: 7;
+      top: 25%;
+      left: 50%;
+      max-width: 86%;
+      transform: translateX(-50%);
+      padding: 5px 9px;
+      border: 1px solid #ff4422;
+      color: #ff4422;
+      background: rgba(0, 0, 0, 0.78);
+      text-align: center;
+      font: bold clamp(11px, 2.3vw, 17px) "Courier New", monospace;
+      letter-spacing: 1px;
+      text-shadow: 0 0 5px rgba(255, 68, 34, 0.85);
+      pointer-events: none;
+    }
+
+    .hull-critical-alert[hidden] { display: none; }
+
     .mission-complete {
       position: absolute;
       z-index: 8;
@@ -273,6 +293,42 @@
     }
     .mission-complete-actions button:active { border-style: inset; }
     .mission-complete-actions button:focus-visible {
+      outline: 2px solid #ffff00;
+      outline-offset: 2px;
+    }
+
+    .game-over {
+      position: absolute;
+      z-index: 9;
+      top: 54%;
+      left: 50%;
+      width: min(86%, 360px);
+      transform: translate(-50%, -50%);
+      padding: 12px;
+      border: 2px solid #ff6633;
+      color: #ff6633;
+      background: rgba(0, 0, 0, 0.92);
+      box-shadow: 0 0 0 2px #551100, 0 0 14px rgba(255, 102, 51, 0.55);
+      text-align: center;
+      font: bold clamp(13px, 2.8vw, 21px) "Courier New", monospace;
+      letter-spacing: 1px;
+      text-shadow: 0 0 6px rgba(255, 102, 51, 0.8);
+      pointer-events: auto;
+    }
+
+    .game-over[hidden] { display: none; }
+    .game-over span { display: block; margin-top: 7px; color: #ffff00; font-size: 0.68em; }
+    .game-over-actions { margin-top: 11px; }
+    .game-over-actions button {
+      min-width: 150px;
+      padding: 7px 10px;
+      border: 3px outset #eeeeee;
+      color: #000000;
+      background: #c8c8c8;
+      font: bold 11px "Courier New", monospace;
+    }
+    .game-over-actions button:active { border-style: inset; }
+    .game-over-actions button:focus-visible {
       outline: 2px solid #ffff00;
       outline-offset: 2px;
     }
@@ -386,6 +442,26 @@
       white-space: nowrap;
     }
 
+    .hull-meter {
+      display: inline-block;
+      width: min(190px, 45vw);
+      height: 10px;
+      margin-left: 9px;
+      vertical-align: -1px;
+      border: 1px solid #ff6644;
+      background: #260600;
+      box-shadow: inset 0 0 0 1px #000000;
+    }
+
+    .hull-meter-fill {
+      display: block;
+      width: var(--hull-level, 100%);
+      height: 100%;
+      background: #ff2b16;
+      box-shadow: 0 0 5px rgba(255, 50, 22, 0.85);
+      transition: width 120ms linear;
+    }
+
     .controls-cell {
       width: 335px;
       padding: 5px;
@@ -469,7 +545,8 @@
 #sound-button.is-active,
 #hud-button.is-active,
 #digital-rain-button.is-active,
-#starfield-button.is-active {
+#starfield-button.is-active,
+#hull-integrity-button.is-active {
       color: #00ff66;
       background: #001b0a;
       text-shadow: 0 0 5px #00aa44;
@@ -676,6 +753,7 @@
     @media (prefers-reduced-motion: reduce) {
       .blink { animation: none; }
       .navigation-noise { transition: none; }
+      .hull-meter-fill { transition: none; }
       .canvas-wrap.analog-vision .analog-beam {
         top: 50%;
         opacity: 0.35;

@@ -2,7 +2,7 @@
   "use strict";
 
   const Noseview = root.Noseview;
-  if (!Noseview || !Noseview.city || !Noseview.flight || !Noseview.navigation || !Noseview.renderer) {
+  if (!Noseview || !Noseview.city || !Noseview.flight || !Noseview.integrity || !Noseview.navigation || !Noseview.renderer) {
     throw new Error("Engine dependencies must load before engine.js");
   }
 
@@ -38,8 +38,10 @@
     const onMissionEvent = typeof settings.onMissionEvent === "function" ? settings.onMissionEvent : function () {};
     const onNavigationEvent = typeof settings.onNavigationEvent === "function" ? settings.onNavigationEvent : function () {};
     const onCollisionIncident = typeof settings.onCollisionIncident === "function" ? settings.onCollisionIncident : function () {};
+    const onIntegrityEvent = typeof settings.onIntegrityEvent === "function" ? settings.onIntegrityEvent : function () {};
     const onError = typeof settings.onError === "function" ? settings.onError : function () {};
     const flight = Noseview.flight.createFlightModel();
+    const integrity = Noseview.integrity.createIntegrityModel(settings.integrity);
     const navigation = Noseview.navigation.createNavigationModel(settings.navigation);
     function createNoopMission() {
       const idle = {
@@ -123,7 +125,15 @@
       }
     }
 
-    function reportCollisionIncident(incident) {
+    function reportIntegrityEvent(event) {
+      try {
+        onIntegrityEvent(event);
+      } catch (error) {
+        reportError(error);
+      }
+    }
+
+    function reportCollisionIncident(incident, timeSeconds) {
       collisionCount += 1;
       try {
         if (typeof music.playCollisionCue === "function") music.playCollisionCue(incident);
@@ -135,11 +145,17 @@
       } catch (error) {
         reportError(error);
       }
+      try {
+        integrity.handleCollision(incident, timeSeconds, collisionCount);
+      } catch (error) {
+        reportError(error);
+      }
     }
 
     function resetRun() {
       collisionCount = 0;
       flight.resetCollisionIncidents();
+      integrity.resetRun();
     }
 
     function stopNavigationAudioCues() {
@@ -198,6 +214,7 @@
         effects: { ...effects },
         sound: { available: Boolean(sound.available), enabled: Boolean(sound.enabled) },
         collisionCount,
+        integrity: integrity.getSnapshot(),
         navigation: { ...navigationSnapshot },
         mission: mission.getSnapshot()
       };
@@ -218,8 +235,14 @@
       const elapsedTime = Math.max(0, (time - previousTime) / 1000);
       const deltaTime = Math.min(elapsedTime, 0.05);
       previousTime = time;
-      const flightResult = flight.update(deltaTime);
-      flightResult.incidents.forEach(reportCollisionIncident);
+      const wasGameOver = integrity.getSnapshot().gameOver;
+      const flightResult = wasGameOver ? { blocked: false, incidents: [] } : flight.update(deltaTime);
+      flightResult.incidents.forEach(incident => reportCollisionIncident(incident, time / 1000));
+      const integrityEvents = integrity.drainEvents();
+      integrityEvents.forEach(reportIntegrityEvent);
+      const integrityFailed = integrityEvents.some(event => event.type === "game-over");
+      const integritySnapshot = integrity.getSnapshot();
+      if (integritySnapshot.gameOver && !wasGameOver) flight.clearControls();
 
       let flightSnapshot = flight.getSnapshot();
       const previousNavigationState = navigationSnapshot.state;
@@ -257,7 +280,7 @@
       // Mission update, target and events
       let missionTargets = [];
       try {
-        mission.update(flightSnapshot.camera, elapsedTime);
+        if (!integritySnapshot.gameOver) mission.update(flightSnapshot.camera, elapsedTime);
         // Acquired targets remain visible during a hunt, but terminal states leave no stale beacon markers.
         missionTargets = mission.isActive() && typeof mission.getTargets === "function" ? mission.getTargets() : [];
         const missionEvents = mission.drainEvents();
@@ -276,7 +299,7 @@
 
       smoothedFps += ((1 / Math.max(deltaTime, 0.001)) - smoothedFps) * 0.08;
 
-      emitTelemetry(time, navigationResult.stateChanged || navigationReset || false);
+      emitTelemetry(time, navigationResult.stateChanged || navigationReset || integrityFailed);
       animationFrame = root.requestAnimationFrame(render);
     }
 
@@ -345,7 +368,7 @@
 
     function setControl(action, enabled) {
       assertAlive();
-      flight.setControl(action, enabled);
+      flight.setControl(action, integrity.getSnapshot().gameOver ? false : enabled);
     }
 
     function cycleSpeed() {
@@ -406,6 +429,7 @@
       if (typeof starfield.destroy === "function") starfield.destroy();
       await music.destroy();
       try { if (typeof mission.destroy === "function") mission.destroy(); } catch (_error) {}
+      integrity.destroy();
       renderer.destroy();
     }
 
@@ -447,6 +471,35 @@
       emitTelemetry(root.performance.now(), true);
       return mission.getSnapshot();
     }
+
+    function setHullIntegrityEnabled(enabled) {
+      assertAlive();
+      const snapshot = integrity.setEnabled(enabled);
+      integrity.drainEvents().forEach(reportIntegrityEvent);
+      if (snapshot.gameOver) flight.clearControls();
+      emitTelemetry(root.performance.now(), true);
+      return snapshot.enabled;
+    }
+
+    function restartGame() {
+      assertAlive();
+      if (!integrity.getSnapshot().enabled) return integrity.getSnapshot();
+      resetRun();
+      try {
+        if (typeof mission.isActive === "function" && mission.isActive()) {
+          mission.restartAttempt();
+          mission.drainEvents().forEach(reportMissionEvent);
+        }
+      } catch (error) {
+        reportError(error);
+      }
+      flight.clearControls();
+      flight.reset();
+      navigationSnapshot = navigation.reset(flight.getSnapshot().camera);
+      emitTelemetry(root.performance.now(), true);
+      return integrity.getSnapshot();
+    }
+
     return {
       start,
       destroy,
@@ -460,6 +513,8 @@
       startSignalHunt,
       abortSignalHunt,
       replaySignalHunt,
+      setHullIntegrityEnabled,
+      restartGame,
       resetRun
     };
   }

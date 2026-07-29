@@ -898,6 +898,55 @@
         }
       },
       {
+        name: "hull integrity applies deterministic guarded collision damage",
+        run() {
+          const model = Noseview.integrity.createIntegrityModel({
+            enabled: true,
+            damagePerIncident: 25,
+            damageGuardSeconds: 0.5
+          });
+          const wall = { type: "collision", surface: "STRUCTURE", colliderId: "building-01" };
+          const roof = { type: "collision", surface: "STRUCTURE", colliderId: "building-01-roof" };
+          model.handleCollision(wall, 1, 1);
+          assert(model.getSnapshot().current === 75, "First normalized collision did not damage the hull");
+          const jitter = model.handleCollision(wall, 1.1, 2);
+          assert(!jitter.applied && model.getSnapshot().current === 75, "Damage guard did not reject same-contact jitter");
+          model.handleCollision(roof, 1.1, 3);
+          assert(model.getSnapshot().current === 50, "Damage guard rejected a distinct simultaneous contact");
+          model.handleCollision(wall, 1.6, 4);
+          assert(model.getSnapshot().current === 25 && model.getSnapshot().low, "Later distinct impact episode or low state was lost");
+          model.handleCollision({ type: "collision", surface: "GROUND", colliderId: null }, 2, 5);
+          assert(model.getSnapshot().current === 0 && model.getSnapshot().gameOver, "Zero HP did not enter Game Over");
+          model.handleCollision(roof, 3, 6);
+          assert(model.getSnapshot().current === 0, "Damage continued after Game Over");
+          const gameOverEvents = model.drainEvents().filter(event => event.type === "game-over");
+          assert(gameOverEvents.length === 1 && gameOverEvents[0].collisionCount === 5, "Game Over was not emitted exactly once with the final count");
+        }
+      },
+      {
+        name: "hull integrity reset, toggle, and teardown transitions are clean",
+        run() {
+          const model = Noseview.integrity.createIntegrityModel({ damagePerIncident: 100 });
+          const incident = { type: "collision", surface: "GROUND", colliderId: null };
+          assert(!model.getSnapshot().enabled, "Hull Integrity was enabled by default");
+          model.handleCollision(incident, 0, 1);
+          assert(model.getSnapshot().current === 100, "Disabled Hull Integrity accepted damage");
+          model.setEnabled(true);
+          model.handleCollision(incident, 1, 1);
+          assert(model.getSnapshot().gameOver, "Enabled Hull Integrity did not apply damage");
+          model.setEnabled(false);
+          assert(!model.getSnapshot().enabled && !model.getSnapshot().gameOver, "Disabling did not remove Hull Game Over");
+          model.setEnabled(true);
+          assert(model.getSnapshot().current === 100 && !model.getSnapshot().gameOver, "Re-enabling did not begin a fresh run");
+          model.handleCollision(incident, 2, 1);
+          model.resetRun();
+          assert(model.getSnapshot().current === 100 && !model.getSnapshot().gameOver, "Run restart did not restore full hull");
+          model.destroy();
+          model.handleCollision(incident, 3, 1);
+          assert(model.getSnapshot().current === 100, "Destroyed integrity model accepted damage");
+        }
+      },
+      {
         name: "reset attempt during active mission restarts progress",
         run() {
           const city = Noseview.city.generateCity(19810001);

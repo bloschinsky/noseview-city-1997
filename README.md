@@ -16,6 +16,7 @@ A retro-futuristic navigation terminal for exploring a procedurally generated 3D
 - Free flight through a three-dimensional city
 - Three deterministic procedural landmarks in every 26-structure city
 - Normalized collision records for building walls, rooftops, landmarks, and ground contact
+- Optional Hull Integrity survival rules with collision damage and an accessible restart flow
 - Ground-floor protection and automatic navigation-boundary recovery
 - Three speed modes and procedural city regeneration
 - HUD with position, altitude, heading, pitch, and FPS data
@@ -84,6 +85,12 @@ The camera remains at least `0.6` world units above the ground. Signal degradati
 
 The persistent flight-status panel shows `COLLISIONS: N`. One physical contact episode increments it once, whether the impact is with a structure or the ground; continuing to hold movement against the same surface does not add records. The counter does not change on `RESET POSITION`, automatic navigation return, or mission abort. It resets only when a new run begins: page load, generating a city, starting Signal Hunt, or replaying Signal Hunt.
 
+## Hull Integrity
+
+`HULL INTEGRITY` is an optional gameplay setting and is off by default. When enabled, a run starts at `100 HP` and each normalized collision incident removes `10 HP`; sustained contact with one surface does not repeatedly drain the hull. A persistent red Hull Integrity progress bar remains visible in the flight-status panel even when the optional HUD or Analog Vision is disabled. At 30 HP or below, `HULL CRITICAL` appears as a red flight-display warning.
+
+At zero HP, flight input and Signal Hunt timing/scanning pause while rendering and controls remain responsive. The focus-managed `GAME OVER` dialog reports the final collision count. `RESTART GAME` restores full HP, clears collision records and held input, resets the camera, and restarts the current Signal Hunt attempt when one is active. Starting or replaying Signal Hunt and generating a new city also begin a fresh full-HP run. Resetting position, automatic navigation recovery, or aborting a mission preserves HP. Disabling Hull Integrity immediately removes its damage and Game Over rules without clearing collision records or changing the selected mission.
+
 ## Display Effects
 
 Settings offers `DIGITAL RAIN` and `STARFIELD` as one exclusive sky selection: turning on either turns the other off, and pressing the active option again returns to the default black sky. Starfield is a fixed 700-point white WebGL sky with no motion or regeneration, including when reduced motion is enabled.
@@ -94,7 +101,7 @@ Open `index.html` in a modern browser with WebGL support. No installation or bui
 
 ## Architecture
 
-The canonical edition uses ordered classic scripts under `src/`, with no native modules, dependencies, bundler, or generated runtime bundle. The framework-agnostic engine is created through `window.Noseview.createNoseviewEngine()`; rendering, city generation, flight/collisions, navigation boundaries, effects, audio, HUD, and page controls remain separate subsystems behind that API.
+The canonical edition uses ordered classic scripts under `src/`, with no native modules, dependencies, bundler, or generated runtime bundle. The framework-agnostic engine is created through `window.Noseview.createNoseviewEngine()`; rendering, city generation, flight/collisions, Hull Integrity, navigation boundaries, effects, audio, HUD, and page controls remain separate subsystems behind that API.
 
 City generation returns unified structure metadata together with separate building and landmark collections. Every seed promotes three of the 26 structure lots into a telecommunications tower, needle tower, and helipad/antenna complex, so landmarks do not increase the displayed structure count. Solid landmark parts generate their render geometry and AABB colliders together, and each landmark exposes a stable future Signal Hunt anchor.
 

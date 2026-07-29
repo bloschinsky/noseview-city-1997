@@ -23,6 +23,9 @@
       fps: documentRoot.getElementById("fps"),
       buildings: documentRoot.getElementById("building-count"),
       collisions: documentRoot.getElementById("collision-count"),
+      hullRow: documentRoot.getElementById("hull-status-row"),
+      hullIntegrity: documentRoot.getElementById("hull-integrity"),
+      hullCriticalAlert: documentRoot.getElementById("hull-critical-alert"),
       hudAlt: documentRoot.getElementById("hud-alt"),
       hudHeading: documentRoot.getElementById("hud-hdg"),
       navigationAlert: documentRoot.getElementById("navigation-alert"),
@@ -37,7 +40,10 @@
       missionFeedback: documentRoot.getElementById("mission-feedback"),
       missionComplete: documentRoot.getElementById("mission-complete"),
       missionCompleteTitle: documentRoot.getElementById("mission-complete-title"),
-      missionCompleteStats: documentRoot.getElementById("mission-complete-stats")
+      missionCompleteStats: documentRoot.getElementById("mission-complete-stats"),
+      gameOver: documentRoot.getElementById("game-over"),
+      gameOverReason: documentRoot.getElementById("game-over-reason"),
+      gameOverStats: documentRoot.getElementById("game-over-stats")
     };
     const navigationLabels = {
       SAFE: "ONLINE",
@@ -74,6 +80,28 @@
       elements.fps.textContent = Math.round(Math.min(snapshot.fps, 999)).toString();
       elements.buildings.textContent = String(snapshot.buildingCount);
       if (elements.collisions) elements.collisions.textContent = String(snapshot.collisionCount || 0);
+      const integrity = snapshot.integrity || {
+        enabled: false,
+        current: 100,
+        maximum: 100,
+        low: false,
+        criticalText: "",
+        gameOver: false
+      };
+      if (elements.hullRow) {
+        elements.hullRow.hidden = !integrity.enabled;
+      }
+      if (elements.hullIntegrity) {
+        const maximum = Math.max(1, Number(integrity.maximum) || 1);
+        const current = Math.max(0, Math.min(maximum, Number(integrity.current) || 0));
+        elements.hullIntegrity.style.setProperty("--hull-level", `${current / maximum * 100}%`);
+        elements.hullIntegrity.setAttribute("aria-valuemax", String(maximum));
+        elements.hullIntegrity.setAttribute("aria-valuenow", String(current));
+        elements.hullIntegrity.setAttribute("aria-valuetext", `${current} of ${maximum} hull integrity`);
+      }
+      if (elements.hullCriticalAlert) {
+        elements.hullCriticalAlert.hidden = !integrity.enabled || !integrity.low || integrity.gameOver;
+      }
       elements.hudAlt.textContent = `ALT. ${snapshot.position.y.toFixed(2)}`;
       elements.hudHeading.textContent = `HDG. ${heading}`;
       updateNavigation(snapshot.navigation);
@@ -108,10 +136,17 @@
       }
       const completion = mission.completion;
       if (elements.missionComplete) {
-        elements.missionComplete.hidden = !completion;
+        elements.missionComplete.hidden = !completion || integrity.gameOver;
         if (completion && elements.missionCompleteTitle && elements.missionCompleteStats) {
           elements.missionCompleteTitle.textContent = "MISSION COMPLETE";
           elements.missionCompleteStats.textContent = `TARGETS: ${completion.acquiredTargets}/${completion.totalTargets} // TIME: ${completion.elapsedSeconds.toFixed(1)} SEC`;
+        }
+      }
+      if (elements.gameOver) {
+        elements.gameOver.hidden = !integrity.gameOver;
+        if (integrity.gameOver) {
+          if (elements.gameOverReason) elements.gameOverReason.textContent = "HULL FAILURE";
+          if (elements.gameOverStats) elements.gameOverStats.textContent = `FINAL COLLISIONS: ${snapshot.collisionCount || 0}`;
         }
       }
       setVisible(snapshot.effects.hud);
