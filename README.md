@@ -1,5 +1,15 @@
 # NOSEVIEW 1997
 
+Fly a neon wireframe city, hunt rooftop transmissions, and survive long enough to
+find your way home — all inside a deliberately overbuilt 1997-style navigation
+terminal.
+
+## [▶ PLAY LIVE](https://bloschinsky.github.io/noseview-city-1997/)
+
+[![NOSEVIEW 1997 default flight terminal](docs/screenshots/v1.13.0-default.png)](https://bloschinsky.github.io/noseview-city-1997/)
+
+[Watch the 7-second flight demo captured during Signal Hunt (WebM, 180 KB).](docs/media/v1.13.0-flight-and-signal-hunt.webm)
+
 ```text
  _   _  ___  ____  _____ _   _ ___ _____ _    _
 | \ | |/ _ \/ ___|| ____| | | |_ _| ____| |  | |
@@ -9,7 +19,11 @@
              C I T Y   T E R M I N A L   1 9 9 7
 ```
 
-A retro-futuristic navigation terminal for exploring a procedurally generated 3D city in the spirit of the 1997 web. Built without frameworks or dependencies using only HTML, CSS, JavaScript, and WebGL.
+NOSEVIEW 1997 is a compact retro-futuristic flight game with deterministic
+procedural cities, accessible controls, optional survival systems, and a timed
+Signal Hunt mission. The entire experience is plain HTML, CSS, JavaScript, and
+WebGL: no framework, dependency, build step, server, account, cookies, or
+tracking.
 
 ## Features
 
@@ -70,14 +84,32 @@ These versions are a feature-derived compatibility baseline rather than an exhau
 
 The browser floor is primarily set by CSS `aspect-ratio`: it arrived in [Chrome 88](https://developer.chrome.com/blog/new-in-chrome-88), [Firefox 89](https://developer.mozilla.org/en-US/docs/Mozilla/Firefox/Releases/89), and [Safari 15](https://webkit.org/blog/11989/new-webkit-features-in-safari-15/). Samsung Internet 15 is based on [Chromium 90](https://developer.samsung.com/internet/blog/en/2021/07/20/introducing-samsung-internet-150-beta). The device must also expose a working [WebGL context](https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API), while touchscreen controls rely on [Pointer Events and pointer capture](https://developer.mozilla.org/en-US/docs/Web/API/Element/setPointerCapture).
 
-## Controls
+## Free Flight Controls
 
-- `W / A / S / D` — move
-- `Arrow keys` — look around
-- `R` — reset position
-- `F` — cycle speed
+| Input | Action |
+| --- | --- |
+| `W / A / S / D` | Fly forward/backward and strafe left/right |
+| Arrow keys | Look up/down and turn left/right |
+| `R` | Reset to the current city's helipad |
+| `F` | Cycle Slow, Normal, and Fast movement |
+| On-screen movement/view pads | Pointer and touch flight controls |
+| `MISSIONS` | Open the mission directory |
+| `SETTINGS` | Configure display effects, speed, and optional survival systems |
 
 Missions always start hovering above the yellow-cornered helipad-complex landing pad of the current city and facing the world center. `RESET POSITION` and the `R` key both restore that helipad pose. `GENERATE NEW CITY` reshuffles the layout under the pilot without moving the camera or clearing held movement keys; the next `RESET POSITION` then targets the freshly generated helipad.
+
+## Signal Hunt Controls
+
+1. Open `MISSIONS`, choose `SIGNAL HUNT`, and press `START SIGNAL HUNT`.
+2. Follow the active cyan rooftop transmitter.
+3. Center the crosshair on it and keep the target in range and in view for two
+   continuous seconds.
+4. Acquire every signal before the mission timer expires.
+
+Open `MISSIONS` during a hunt to abort it. `RESET POSITION` or `R` restarts the
+current attempt from the helipad; the completion dialog offers replay and
+new-city actions. All mission status, lock progress, results, and failures are
+available as text as well as visual feedback.
 
 ## Navigation Safety
 
@@ -103,17 +135,41 @@ The flight-status panel keeps `FUEL: current/100` readable next to a blue fuel m
 
 Settings offers `DIGITAL RAIN` and `STARFIELD` as one exclusive sky selection: turning on either turns the other off, and pressing the active option again returns to the default black sky. Starfield is a fixed 700-point white WebGL sky with no motion or regeneration, including when reduced motion is enabled.
 
-## Run
+## Run Locally
 
-Open `index.html` in a modern browser with WebGL support. No installation or build step is required.
+1. Download the repository ZIP and extract it, or clone the repository:
+
+   ```powershell
+   git clone https://github.com/bloschinsky/noseview-city-1997.git
+   ```
+
+2. Open `index.html` directly in a supported browser.
+
+The canonical edition runs through `file://`; there is nothing to install,
+compile, or serve. Keep the repository folders together so the relative script
+and stylesheet paths remain available.
 
 ## Architecture
 
-The canonical edition uses ordered classic scripts under `src/`, with no native modules, dependencies, bundler, or generated runtime bundle. The framework-agnostic engine is created through `window.Noseview.createNoseviewEngine()`; rendering, city generation, flight/collisions, Hull Integrity, Fuel Endurance, navigation boundaries, effects, audio, HUD, and page controls remain separate subsystems behind that API.
+The page loads dependency-free classic scripts in a fixed order:
 
-City generation returns unified structure metadata together with separate building and landmark collections. Every seed promotes three of the 26 structure lots into a telecommunications tower, needle tower, and helipad/antenna complex, so landmarks do not increase the displayed structure count. Solid landmark parts generate their render geometry and AABB colliders together, and each landmark exposes a stable future Signal Hunt anchor.
+- `src/engine/` owns deterministic city generation, flight and collision rules,
+  navigation, survival systems, missions, and WebGL rendering.
+- `src/effects/` owns optional Analog Vision, Digital Rain, Starfield, and
+  navigation-signal presentation.
+- `src/audio/` creates music and cues lazily after user interaction.
+- `src/ui/` binds the DOM controls and formats throttled telemetry.
+- `src/main.js` wires the page to the framework-agnostic
+  `window.Noseview.createNoseviewEngine()` API.
 
-`window.Noseview` is the only intentional application-level global. `src/main.js` loads last and only wires the engine to the existing page UI.
+`window.Noseview` is the only intentional application global. Generated render
+geometry, structure metadata, and AABB colliders come from the same deterministic
+city model. The production files are the same files used by direct-open local
+play and GitHub Pages.
+
+## Release History
+
+See [CHANGELOG.md](CHANGELOG.md) for the canonical release notes.
 
 ## Roadmap
 
@@ -131,3 +187,16 @@ Node.js is optional and is not required to open or play the canonical edition.
 
 The tested `v1.3.4` behavior, browser matrix, and reference screenshots are
 recorded in [`docs/testing.md`](docs/testing.md).
+
+## License
+
+NOSEVIEW 1997 is open-source software available under the
+[MIT License](LICENSE).
+
+## Credits and Acknowledgements
+
+Created and maintained by [Artem Bloschinsky](https://github.com/bloschinsky).
+The presentation takes affectionate inspiration from late-1990s personal
+websites, CRT terminals, wireframe flight displays, and DOS-era sound hardware.
+Built directly on the browser standards and APIs that make a dependency-free
+experience possible: HTML, CSS, Canvas, WebGL, Web Audio, and Pointer Events.

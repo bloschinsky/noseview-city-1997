@@ -753,20 +753,20 @@ Release damping:      under one second to settle
 
 Goal: make the repository understandable and playable within seconds of opening its GitHub page.
 
-- [ ] Add a prominent `PLAY LIVE` link near the top of `README.md`.
-- [ ] Add one strong default-state screenshot.
-- [ ] Add a short GIF or video showing movement and Signal Hunt if repository size remains reasonable.
-- [ ] Add a concise project description before the long feature list.
-- [ ] Document Free Flight and Signal Hunt controls separately.
-- [ ] Document the direct-open local workflow: download or clone, then open `index.html`.
-- [ ] Document the supported browser baseline.
-- [ ] Document the project architecture at a high level.
-- [ ] Add a short credits and acknowledgements section.
-- [ ] Choose a license with the repository owner; MIT is the recommended default but must not be assumed without approval.
-- [ ] Add the approved `LICENSE` file.
-- [ ] Add a `CHANGELOG.md` or a concise release-history section.
-- [ ] Update visible revision text for the new release.
-- [ ] Create a local release tag only after final validation and hand it off for manual publication by the repository owner.
+- [x] Add a prominent `PLAY LIVE` link near the top of `README.md`.
+- [x] Add one strong default-state screenshot.
+- [x] Add a short GIF or video showing movement and Signal Hunt if repository size remains reasonable.
+- [x] Add a concise project description before the long feature list.
+- [x] Document Free Flight and Signal Hunt controls separately.
+- [x] Document the direct-open local workflow: download or clone, then open `index.html`.
+- [x] Document the supported browser baseline.
+- [x] Document the project architecture at a high level.
+- [x] Add a short credits and acknowledgements section.
+- [x] Choose a license with the repository owner; MIT is the recommended default but must not be assumed without approval.
+- [x] Add the approved `LICENSE` file.
+- [x] Add a `CHANGELOG.md` or a concise release-history section.
+- [x] Update visible revision text for the new release.
+- [x] Create a local release tag only after final validation and hand it off for manual publication by the repository owner.
 
 ### Acceptance criteria
 
