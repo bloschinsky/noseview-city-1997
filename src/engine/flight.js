@@ -58,6 +58,8 @@
     let colliders = (settings.colliders || []).slice();
     let speedIndex = settings.speedIndex === undefined ? 1 : settings.speedIndex;
     const controls = {};
+    let activeContactKeys = new Set();
+    let impactSequence = 0;
     CONTROL_NAMES.forEach(name => { controls[name] = false; });
 
     function assertControl(action) {
@@ -77,6 +79,7 @@
 
     function reset() {
       camera = copyCamera(initialCamera);
+      activeContactKeys.clear();
     }
 
     function setInitialCamera(nextCamera) {
@@ -102,6 +105,12 @@
 
     function setColliders(nextColliders) {
       colliders = nextColliders.slice();
+      activeContactKeys.clear();
+    }
+
+    function resetCollisionIncidents() {
+      activeContactKeys.clear();
+      impactSequence = 0;
     }
 
     function cycleSpeed() {
@@ -124,19 +133,31 @@
       return 0;
     }
 
+    function getColliderId(collider, index) {
+      return String(collider.partId || collider.id || collider.structureId || `collider-${index}`);
+    }
+
+    function createContact(surface, colliderId) {
+      return { surface, colliderId, key: `${surface}:${colliderId === null ? "ground" : colliderId}` };
+    }
+
     function moveCameraAlongAxis(axis, distance) {
       const start = camera[axis];
       const requestedBelowGround = axis === "y" && start + distance < minimumAltitude;
       let moveDistance = distance;
       if (requestedBelowGround) moveDistance = minimumAltitude - start;
-      if (distance !== 0 && moveDistance === 0 && requestedBelowGround) return true;
-      if (distance === 0) return false;
+      if (distance !== 0 && moveDistance === 0 && requestedBelowGround) {
+        return { blocked: true, contacts: [createContact("GROUND", null)] };
+      }
+      if (distance === 0) return { blocked: false, contacts: [] };
 
       const target = start + moveDistance;
       const radiusSquared = cameraRadius * cameraRadius;
       let safeFraction = 1;
+      let nearestCollisionFraction = Infinity;
+      const blockingColliders = [];
 
-      colliders.forEach(collider => {
+      colliders.forEach((collider, index) => {
         let perpendicularDistanceSquared;
         let min;
         let max;
@@ -173,14 +194,24 @@
           collisionFraction = (collisionMax - start) / moveDistance;
         }
 
-        if (collisionFraction < safeFraction) {
+        if (collisionFraction < 1 && collisionFraction < nearestCollisionFraction) {
+          nearestCollisionFraction = collisionFraction;
           safeFraction = Math.max(0, collisionFraction - 0.000001);
+          blockingColliders.length = 0;
+          blockingColliders.push({ collider, index });
+        } else if (collisionFraction < 1 && collisionFraction === nearestCollisionFraction) {
+          blockingColliders.push({ collider, index });
         }
       });
 
       camera[axis] = start + moveDistance * safeFraction;
       if (axis === "y" && camera.y < minimumAltitude) camera.y = minimumAltitude;
-      return (requestedBelowGround && distance < 0) || safeFraction < 1;
+      const contacts = blockingColliders.map(item => createContact("STRUCTURE", getColliderId(item.collider, item.index)));
+      if (requestedBelowGround && distance < 0) contacts.push(createContact("GROUND", null));
+      return {
+        blocked: contacts.length > 0 || safeFraction < 1,
+        contacts
+      };
     }
 
     function moveCamera(displacementX, displacementY, displacementZ) {
@@ -190,12 +221,14 @@
       const stepY = displacementY / steps;
       const stepZ = displacementZ / steps;
       let blocked = false;
+      const contacts = new Map();
       for (let index = 0; index < steps; index += 1) {
-        blocked = moveCameraAlongAxis("x", stepX) || blocked;
-        blocked = moveCameraAlongAxis("y", stepY) || blocked;
-        blocked = moveCameraAlongAxis("z", stepZ) || blocked;
+        [moveCameraAlongAxis("x", stepX), moveCameraAlongAxis("y", stepY), moveCameraAlongAxis("z", stepZ)].forEach(result => {
+          blocked = result.blocked || blocked;
+          result.contacts.forEach(contact => contacts.set(contact.key, contact));
+        });
       }
-      return blocked;
+      return { blocked, contacts: Array.from(contacts.values()) };
     }
 
     function update(deltaTime) {
@@ -221,12 +254,26 @@
         moveForward /= magnitude;
         moveRight /= magnitude;
       }
-      const blocked = moveCamera(
+      const movement = moveCamera(
         (forward[0] * moveForward + rightX * moveRight) * moveStep,
         forward[1] * moveForward * moveStep,
         (forward[2] * moveForward + rightZ * moveRight) * moveStep
       );
-      return { blocked };
+      const contacts = movement.contacts;
+      const incidents = contacts
+        .filter(contact => !activeContactKeys.has(contact.key))
+        .map(contact => ({
+          type: "collision",
+          surface: contact.surface,
+          colliderId: contact.colliderId,
+          impactSequence: ++impactSequence
+        }));
+      activeContactKeys = new Set(contacts.map(contact => contact.key));
+      return {
+        blocked: movement.blocked,
+        incidents,
+        incident: incidents.length === 1 ? incidents[0] : null
+      };
     }
 
     function getSnapshot() {
@@ -243,6 +290,7 @@
       reset,
       setInitialCamera,
       setColliders,
+      resetCollisionIncidents,
       cycleSpeed,
       update,
       getSnapshot

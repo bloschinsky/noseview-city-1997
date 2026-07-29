@@ -217,6 +217,94 @@
         }
       },
       {
+        name: "collision incidents normalize sustained contacts and re-arm after release",
+        run() {
+          const collider = { partId: "building-07-base", minX: -2, maxX: 2, minY: 0, maxY: 3, minZ: 0, maxZ: 1 };
+          const flight = Noseview.flight.createFlightModel({
+            initialCamera: { x: 0, y: 1, z: 3, yaw: 0, pitch: 0 },
+            colliders: [collider]
+          });
+          flight.setControl("forward", true);
+          const impact = flight.update(1);
+          assert(impact.incidents.length === 1, "First wall contact did not create one incident");
+          assert(impact.incident.surface === "STRUCTURE", "Wall collision had the wrong surface type");
+          assert(impact.incident.colliderId === "building-07-base", "Wall collision lost its stable collider ID");
+          assert(impact.incident.impactSequence === 1, "First collision sequence was not one");
+          assert(flight.update(0.2).incidents.length === 0, "Sustained wall contact created a duplicate incident");
+          flight.setControl("forward", false);
+          flight.update(0.1);
+          flight.setControl("forward", true);
+          const reImpact = flight.update(0.2);
+          assert(reImpact.incidents.length === 1, "Released and repeated wall impact did not re-arm");
+          assert(reImpact.incident.impactSequence === 2, "Repeated wall impact did not advance the sequence");
+        }
+      },
+      {
+        name: "collision incidents collapse same-obstacle corners and distinguish obstacles",
+        run() {
+          const corner = { partId: "landmark-needle-04-base", minX: 0, maxX: 2, minY: 0, maxY: 3, minZ: 0, maxZ: 2 };
+          const cornerFlight = Noseview.flight.createFlightModel({
+            initialCamera: { x: -1, y: 1, z: 3, yaw: 0, pitch: 0 },
+            colliders: [corner]
+          });
+          cornerFlight.setControl("forward", true);
+          cornerFlight.setControl("strafeRight", true);
+          const cornerImpact = cornerFlight.update(0.5);
+          assert(cornerImpact.incidents.length === 1, "One corner obstacle created duplicate incidents");
+          assert(cornerImpact.incident.colliderId === corner.partId, "Corner incident identified the wrong obstacle");
+
+          const east = { partId: "building-01-base", minX: 1, maxX: 2, minY: 0, maxY: 3, minZ: -1, maxZ: 1 };
+          const west = { partId: "building-02-base", minX: -2, maxX: -1, minY: 0, maxY: 3, minZ: -1, maxZ: 1 };
+          const flight = Noseview.flight.createFlightModel({
+            initialCamera: { x: 0, y: 1, z: 0, yaw: 0, pitch: 0 },
+            colliders: [east, west]
+          });
+          flight.setControl("strafeRight", true);
+          const eastImpact = flight.update(0.2);
+          flight.setControl("strafeRight", false);
+          flight.update(0.1);
+          flight.setControl("strafeLeft", true);
+          const westImpact = flight.update(0.2);
+          assert(eastImpact.incident.colliderId === east.partId, "East obstacle was not recorded");
+          assert(westImpact.incident.colliderId === west.partId, "A different obstacle was not recorded separately");
+          assert(westImpact.incident.impactSequence === eastImpact.incident.impactSequence + 1, "Different obstacles did not create distinct ordered impacts");
+        }
+      },
+      {
+        name: "collision incidents classify rooftops and ground consistently across frame rates",
+        run() {
+          const roof = { partId: "building-13-tier", minX: -10, maxX: 10, minY: 3, maxY: 5, minZ: -10, maxZ: 10 };
+          const roofFlight = Noseview.flight.createFlightModel({
+            initialCamera: { x: 0, y: 7, z: 0, yaw: 0, pitch: -75 * Math.PI / 180 },
+            colliders: [roof]
+          });
+          roofFlight.setControl("forward", true);
+          const roofImpact = roofFlight.update(1);
+          assert(roofImpact.incidents.length === 1 && roofImpact.incident.colliderId === roof.partId, "Rooftop collision was not normalized as a structure incident");
+
+          const groundFlight = Noseview.flight.createFlightModel({
+            initialCamera: { x: 70, y: 0.61, z: 70, yaw: 0, pitch: -Math.PI / 4 }
+          });
+          groundFlight.setControl("forward", true);
+          const groundImpact = groundFlight.update(0.1);
+          assert(groundImpact.incidents.length === 1, "Ground impact did not create one incident");
+          assert(groundImpact.incident.surface === "GROUND" && groundImpact.incident.colliderId === null, "Ground incident was not classified explicitly");
+
+          const makeWallFlight = () => Noseview.flight.createFlightModel({
+            initialCamera: { x: 0, y: 1, z: 3, yaw: 0, pitch: 0 },
+            colliders: [{ partId: "building-08-base", minX: -2, maxX: 2, minY: 0, maxY: 3, minZ: 0, maxZ: 1 }]
+          });
+          const lowRate = makeWallFlight();
+          const highRate = makeWallFlight();
+          lowRate.setControl("forward", true);
+          highRate.setControl("forward", true);
+          const lowRateIncidents = lowRate.update(1).incidents.length;
+          let highRateIncidents = 0;
+          for (let index = 0; index < 20; index += 1) highRateIncidents += highRate.update(0.05).incidents.length;
+          assert(lowRateIncidents === 1 && highRateIncidents === 1, "Refresh rate changed the number of collision incidents");
+        }
+      },
+      {
         name: "pitch remains clamped to plus or minus 75 degrees",
         run() {
           const flight = Noseview.flight.createFlightModel();

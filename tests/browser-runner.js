@@ -208,6 +208,87 @@
     }
   }
 
+  async function runCollisionIncidentEngineCase() {
+    const canvas = root.document.createElement("canvas");
+    canvas.width = 64;
+    canvas.height = 64;
+    canvas.className = "test-canvas";
+    root.document.body.appendChild(canvas);
+    const telemetry = [];
+    const incidents = [];
+    const cues = [];
+    const originalFlightFactory = Noseview.flight.createFlightModel;
+    const originalRequestAnimationFrame = root.requestAnimationFrame;
+    const originalCancelAnimationFrame = root.cancelAnimationFrame;
+    let scheduledFrame = null;
+    let frameId = 0;
+    let updateCount = 0;
+    const camera = { x: 0, y: 10, z: 60, yaw: 0, pitch: 0 };
+    const flight = {
+      setControl() {},
+      clearControls() {},
+      reset() {},
+      setInitialCamera() {},
+      setColliders() {},
+      resetCollisionIncidents() {},
+      cycleSpeed() { return { name: "NORMAL", move: 10, turn: 65 }; },
+      update() {
+        updateCount += 1;
+        return {
+          blocked: updateCount === 1,
+          incidents: updateCount === 1 ? [{ type: "collision", surface: "STRUCTURE", colliderId: "building-07-base", impactSequence: 1 }] : []
+        };
+      },
+      getSnapshot() { return { camera: { ...camera }, speed: { name: "NORMAL", move: 10, turn: 65 }, minimumAltitude: 0.6 }; }
+    };
+    const music = {
+      setEnabled(value) { return Promise.resolve(Boolean(value)); },
+      getState() { return { available: true, enabled: false }; },
+      handleNavigationEvent() {},
+      handleMissionEvent() {},
+      playCollisionCue(incident) { cues.push(incident); },
+      stopNavigationCues() {},
+      destroy() { return Promise.resolve(); }
+    };
+    let engine;
+    try {
+      Noseview.flight.createFlightModel = () => flight;
+      engine = Noseview.createNoseviewEngine(canvas, {
+        music,
+        onTelemetry(snapshot) { telemetry.push(snapshot); },
+        onCollisionIncident(incident) { incidents.push(incident); }
+      });
+      Noseview.flight.createFlightModel = originalFlightFactory;
+      root.requestAnimationFrame = callback => {
+        scheduledFrame = callback;
+        frameId += 1;
+        return frameId;
+      };
+      root.cancelAnimationFrame = () => { scheduledFrame = null; };
+      engine.start();
+      let frameTime = root.performance.now() + 120;
+      let callback = scheduledFrame;
+      scheduledFrame = null;
+      callback(frameTime);
+      callback = scheduledFrame;
+      scheduledFrame = null;
+      callback(frameTime + 120);
+      assert(incidents.length === 1 && cues.length === 1, "One normalized incident did not drive one audio cue and one engine event");
+      assert(incidents[0] === cues[0], "Collision audio did not receive the normalized incident object");
+      assert(telemetry[telemetry.length - 1].collisionCount === 1, "Collision telemetry did not count the normalized incident once");
+      engine.resetCamera();
+      assert(telemetry[telemetry.length - 1].collisionCount === 1, "Reset position incorrectly cleared collision count");
+      engine.startSignalHunt();
+      assert(telemetry[telemetry.length - 1].collisionCount === 0, "Mission start did not begin a fresh collision run");
+    } finally {
+      Noseview.flight.createFlightModel = originalFlightFactory;
+      root.requestAnimationFrame = originalRequestAnimationFrame;
+      root.cancelAnimationFrame = originalCancelAnimationFrame;
+      if (engine) await engine.destroy();
+      canvas.remove();
+    }
+  }
+
   function createFakeAudioContextHarness() {
     const counters = { contexts: 0, oscillators: 0, bufferSources: 0, stoppedSources: 0 };
 
@@ -382,7 +463,7 @@
       <div class="test-navigation-wrap">
         <span id="pos-x"></span><span id="pos-y"></span><span id="pos-z"></span>
         <span id="heading"></span><span id="pitch"></span><span id="speed"></span>
-        <span id="fps"></span><span id="building-count"></span>
+        <span id="fps"></span><span id="building-count"></span><span id="collision-count"></span>
         <span id="hud-alt"></span><span id="hud-hdg"></span>
         <span id="mission-mode"></span><span id="mission-timer"></span>
         <span id="mission-progress"></span><span id="mission-lock"></span>
@@ -409,6 +490,7 @@
       pitchDegrees: -10,
       fps: 60,
       buildingCount: 26,
+      collisionCount: 7,
       speed: { name: "NORMAL", move: 10 },
       effects: { hud: false, analogVision: false, digitalRain: false },
       sound: { available: true, enabled: false },
@@ -431,6 +513,7 @@
       assert(fixture.querySelector("#mission-lock-frame").style.getPropertyValue("--lock-width") === "48px", "Lock frame did not shrink with progress");
       assert(fixture.querySelector("#mission-feedback").textContent === "SIGNAL ACQUIRED", "Acquisition feedback was not rendered as text");
       assert(!fixture.querySelector("#mission-feedback").hidden, "Acquisition feedback was hidden");
+      assert(fixture.querySelector("#collision-count").textContent === "7", "Collision counter was not rendered as persistent text");
       assert(!fixture.querySelector("#navigation-alert").hidden, "Warning text was hidden with HUD off");
       assert(fixture.querySelector("#navigation-message").textContent === "NAVIGATION LIMIT", "Warning label changed");
       assert(!fixture.querySelector("#navigation-status").classList.contains("blink"), "Warning status still blinks");
@@ -565,6 +648,7 @@
     await runCase({ name: "signal transmitter marker renders and clears cleanly", run: runMissionTransmitterRendererCase });
     await runCase({ name: "sky modes are exclusive during rapid transitions", run: runSkyModeCase });
     await runCase({ name: "engine hard boundary resets flight and input", run: runForcedNavigationResetCase });
+    await runCase({ name: "normalized collision incidents drive audio and run telemetry once", run: runCollisionIncidentEngineCase });
     await runCase({ name: "navigation audio stays lazy and schedules procedural cues", run: runNavigationAudioCase });
     await runCase({ name: "navigation warnings remain accessible with reduced motion", run: runNavigationUiCase });
     await runCase({ name: "mission completion dialog traps and restores focus", run: runMissionCompletionFocusCase });

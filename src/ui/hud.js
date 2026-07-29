@@ -22,6 +22,7 @@
       speed: documentRoot.getElementById("speed"),
       fps: documentRoot.getElementById("fps"),
       buildings: documentRoot.getElementById("building-count"),
+      collisions: documentRoot.getElementById("collision-count"),
       hudAlt: documentRoot.getElementById("hud-alt"),
       hudHeading: documentRoot.getElementById("hud-hdg"),
       navigationAlert: documentRoot.getElementById("navigation-alert"),
@@ -72,6 +73,7 @@
       elements.speed.textContent = String(snapshot.speed.move);
       elements.fps.textContent = Math.round(Math.min(snapshot.fps, 999)).toString();
       elements.buildings.textContent = String(snapshot.buildingCount);
+      if (elements.collisions) elements.collisions.textContent = String(snapshot.collisionCount || 0);
       elements.hudAlt.textContent = `ALT. ${snapshot.position.y.toFixed(2)}`;
       elements.hudHeading.textContent = `HDG. ${heading}`;
       updateNavigation(snapshot.navigation);

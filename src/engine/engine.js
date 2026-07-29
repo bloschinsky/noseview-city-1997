@@ -37,6 +37,7 @@
     const onTelemetry = typeof settings.onTelemetry === "function" ? settings.onTelemetry : function () {};
     const onMissionEvent = typeof settings.onMissionEvent === "function" ? settings.onMissionEvent : function () {};
     const onNavigationEvent = typeof settings.onNavigationEvent === "function" ? settings.onNavigationEvent : function () {};
+    const onCollisionIncident = typeof settings.onCollisionIncident === "function" ? settings.onCollisionIncident : function () {};
     const onError = typeof settings.onError === "function" ? settings.onError : function () {};
     const flight = Noseview.flight.createFlightModel();
     const navigation = Noseview.navigation.createNavigationModel(settings.navigation);
@@ -78,8 +79,7 @@
     let previousTime = 0;
     let lastTelemetryTime = 0;
     let smoothedFps = 60;
-    let lastCollisionTime = 0;
-    const COLLISION_COOLDOWN = 300;
+    let collisionCount = 0;
     let currentSeed = Noseview.city.DEFAULT_SEED;
     let city = null;
     let navigationSnapshot;
@@ -121,6 +121,25 @@
       } catch (error) {
         reportError(error);
       }
+    }
+
+    function reportCollisionIncident(incident) {
+      collisionCount += 1;
+      try {
+        if (typeof music.playCollisionCue === "function") music.playCollisionCue(incident);
+      } catch (error) {
+        reportError(error);
+      }
+      try {
+        onCollisionIncident(incident);
+      } catch (error) {
+        reportError(error);
+      }
+    }
+
+    function resetRun() {
+      collisionCount = 0;
+      flight.resetCollisionIncidents();
     }
 
     function stopNavigationAudioCues() {
@@ -178,6 +197,7 @@
         speed: { ...snapshot.speed },
         effects: { ...effects },
         sound: { available: Boolean(sound.available), enabled: Boolean(sound.enabled) },
+        collisionCount,
         navigation: { ...navigationSnapshot },
         mission: mission.getSnapshot()
       };
@@ -199,14 +219,7 @@
       const deltaTime = Math.min(elapsedTime, 0.05);
       previousTime = time;
       const flightResult = flight.update(deltaTime);
-
-      if (flightResult.blocked) {
-        const now = root.performance.now();
-        if (now - lastCollisionTime > COLLISION_COOLDOWN) {
-          lastCollisionTime = now;
-          if (typeof music.playCollisionCue === "function") music.playCollisionCue();
-        }
-      }
+      flightResult.incidents.forEach(reportCollisionIncident);
 
       let flightSnapshot = flight.getSnapshot();
       const previousNavigationState = navigationSnapshot.state;
@@ -296,6 +309,7 @@
 
     function regenerateCity() {
       assertAlive();
+      resetRun();
       const seed = (Date.now() ^ Math.floor(Math.random() * 0xffffffff)) >>> 0;
       let replayMission = false;
       try {
@@ -400,6 +414,7 @@
       if (!city) return mission.getSnapshot();
       try {
         mission.start(city, seed);
+        resetRun();
         mission.drainEvents().forEach(reportMissionEvent);
       } catch (error) {
         reportError(error);
@@ -424,6 +439,7 @@
       assertAlive();
       try {
         mission.replay();
+        resetRun();
         mission.drainEvents().forEach(reportMissionEvent);
       } catch (error) {
         reportError(error);
@@ -443,7 +459,8 @@
       setSoundEnabled,
       startSignalHunt,
       abortSignalHunt,
-      replaySignalHunt
+      replaySignalHunt,
+      resetRun
     };
   }
 

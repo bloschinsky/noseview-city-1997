@@ -454,14 +454,14 @@ Goal: turn per-frame movement blocking into one stable gameplay incident per phy
 
 ### 6.1 Normalize collision incidents
 
-- [ ] Replace the engine's UI-facing `blocked` pulse with a structured collision incident while preserving `blocked` internally where it remains useful to flight resolution.
-- [ ] Classify incidents at minimum as `STRUCTURE` (walls, rooftops, and solid landmark parts) or `GROUND`.
-- [ ] Count one incident when the camera enters a new blocked contact; do not count every rendered frame while movement remains pressed against the same surface.
-- [ ] Re-arm incident detection only after contact ends or the camera makes a distinct impact with another collider.
-- [ ] Collapse simultaneous axis blocks against the same obstacle into one incident while preserving separate impacts against genuinely different obstacles.
-- [ ] Keep collision counting independent of the audio cue cooldown and independent of whether `SOUND` is enabled.
-- [ ] Route the existing collision cue from the normalized incident so audio and gameplay rules consume the same source event.
-- [ ] Add deterministic tests for a single impact, sustained contact, release and re-impact, corners, rooftops, ground contact, and different frame rates.
+- [x] Replace the engine's UI-facing `blocked` pulse with a structured collision incident while preserving `blocked` internally where it remains useful to flight resolution.
+- [x] Classify incidents at minimum as `STRUCTURE` (walls, rooftops, and solid landmark parts) or `GROUND`.
+- [x] Count one incident when the camera enters a new blocked contact; do not count every rendered frame while movement remains pressed against the same surface.
+- [x] Re-arm incident detection only after contact ends or the camera makes a distinct impact with another collider.
+- [x] Collapse simultaneous axis blocks against the same obstacle into one incident while preserving separate impacts against genuinely different obstacles.
+- [x] Keep collision counting independent of the audio cue cooldown and independent of whether `SOUND` is enabled.
+- [x] Route the existing collision cue from the normalized incident so audio and gameplay rules consume the same source event.
+- [x] Add deterministic tests for a single impact, sustained contact, release and re-impact, corners, rooftops, ground contact, and different frame rates.
 
 Suggested incident shape:
 
@@ -478,22 +478,22 @@ The exact field names may change. The important constraint is that consumers rec
 
 ### 6.2 Add the visible collision counter
 
-- [ ] Maintain a `collisionCount` for the current game run and increment it from normalized collision incidents only.
-- [ ] Include the count in throttled engine telemetry without exposing mutable flight internals.
-- [ ] Show a simple `COLLISIONS: N` text value in the persistent flight-status panel.
-- [ ] Keep the count readable when the optional HUD and Analog Vision are disabled.
-- [ ] Do not reset the count on `RESET POSITION`, navigation forced return, or mission abort.
-- [ ] Reset the count when a new game run starts: page load, city generation, or mission start/replay.
-- [ ] Expose one explicit run-reset path that later survival rules can reuse without coupling collision state to those rules.
-- [ ] Verify that collision audio and the counter each react exactly once to the same incident.
+- [x] Maintain a `collisionCount` for the current game run and increment it from normalized collision incidents only.
+- [x] Include the count in throttled engine telemetry without exposing mutable flight internals.
+- [x] Show a simple `COLLISIONS: N` text value in the persistent flight-status panel.
+- [x] Keep the count readable when the optional HUD and Analog Vision are disabled.
+- [x] Do not reset the count on `RESET POSITION`, navigation forced return, or mission abort.
+- [x] Reset the count when a new game run starts: page load, city generation, or mission start/replay.
+- [x] Expose one explicit run-reset path that later survival rules can reuse without coupling collision state to those rules.
+- [x] Verify that collision audio and the counter each react exactly once to the same incident.
 
 ### 6.3 Integration, documentation, and delivery
 
-- [ ] Add any new classic script to both `index.html` and `tests.html` in the same deterministic dependency order and update `AGENTS.md` if that order changes.
-- [ ] Document the collision counter and its reset policy in `README.md`.
+- [x] Add any new classic script to both `index.html` and `tests.html` in the same deterministic dependency order and update `AGENTS.md` if that order changes. (No new script was required.)
+- [x] Document the collision counter and its reset policy in `README.md`.
 - [ ] Manually verify wall, rooftop, landmark, and ground impacts at all three speed modes.
-- [ ] Verify that the collision count remains readable with the HUD and Analog Vision disabled.
-- [ ] Apply the required visible `REV` patch bump when the feature is implemented.
+- [x] Verify that the collision count remains readable with the HUD and Analog Vision disabled.
+- [x] Apply the required visible `REV` patch bump when the feature is implemented.
 
 ### Acceptance criteria
 

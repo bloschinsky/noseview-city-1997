@@ -15,7 +15,7 @@ A retro-futuristic navigation terminal for exploring a procedurally generated 3D
 
 - Free flight through a three-dimensional city
 - Three deterministic procedural landmarks in every 26-structure city
-- Solid collisions with building walls and rooftops
+- Normalized collision records for building walls, rooftops, landmarks, and ground contact
 - Ground-floor protection and automatic navigation-boundary recovery
 - Three speed modes and procedural city regeneration
 - HUD with position, altitude, heading, pitch, and FPS data
@@ -79,6 +79,10 @@ Missions always start hovering above the yellow-cornered helipad-complex landing
 ## Navigation Safety
 
 The camera remains at least `0.6` world units above the ground. Signal degradation begins 90 units from the world center, `OUT OF NAVIGATION AREA` and a five-second return countdown begin at 120 units, and crossing 150 units immediately restores the initial camera position (currently the helipad-complex landing pad of the active city). The same 90 / 120 / 150 warning, critical, and hard-limit thresholds apply symmetrically to vertical distance from the spawn altitude, so climbing steeply upward — or diving well below the ground plane — engages the same recovery sequence. Returning below the critical boundary cancels the countdown. With `SOUND` enabled, these transitions use generated retro attention, timer, and teleport cues, along with a dull "bump" sound when the camera hits an obstacle; no sample files are loaded.
+
+## Collision Records
+
+The persistent flight-status panel shows `COLLISIONS: N`. One physical contact episode increments it once, whether the impact is with a structure or the ground; continuing to hold movement against the same surface does not add records. The counter does not change on `RESET POSITION`, automatic navigation return, or mission abort. It resets only when a new run begins: page load, generating a city, starting Signal Hunt, or replaying Signal Hunt.
 
 ## Display Effects
 
