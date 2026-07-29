@@ -26,6 +26,11 @@
       hullRow: documentRoot.getElementById("hull-status-row"),
       hullIntegrity: documentRoot.getElementById("hull-integrity"),
       hullCriticalAlert: documentRoot.getElementById("hull-critical-alert"),
+      fuelRow: documentRoot.getElementById("fuel-status-row"),
+      fuelLevel: documentRoot.getElementById("fuel-level"),
+      fuelMeter: documentRoot.getElementById("fuel-meter"),
+      fuelAlert: documentRoot.getElementById("fuel-alert"),
+      fuelAlertText: documentRoot.getElementById("fuel-alert-text"),
       hudAlt: documentRoot.getElementById("hud-alt"),
       hudHeading: documentRoot.getElementById("hud-hdg"),
       navigationAlert: documentRoot.getElementById("navigation-alert"),
@@ -100,7 +105,38 @@
         elements.hullIntegrity.setAttribute("aria-valuetext", `${current} of ${maximum} hull integrity`);
       }
       if (elements.hullCriticalAlert) {
-        elements.hullCriticalAlert.hidden = !integrity.enabled || !integrity.low || integrity.gameOver;
+        const blocked = snapshot.survival ? snapshot.survival.gameOver : integrity.gameOver;
+        elements.hullCriticalAlert.hidden = !integrity.enabled || !integrity.low || blocked;
+      }
+      const fuel = snapshot.fuel || {
+        enabled: false,
+        current: 100,
+        maximum: 100,
+        low: false,
+        critical: false,
+        warningText: "",
+        gameOver: false
+      };
+      const fuelMaximum = Math.max(1, Number(fuel.maximum) || 1);
+      const fuelCurrent = Math.max(0, Math.min(fuelMaximum, Number(fuel.current) || 0));
+      if (elements.fuelRow) elements.fuelRow.hidden = !fuel.enabled;
+      if (elements.fuelLevel) {
+        const formattedCurrent = Number.isInteger(fuelCurrent) ? String(fuelCurrent) : fuelCurrent.toFixed(1);
+        elements.fuelLevel.textContent = `${formattedCurrent}/${fuelMaximum}`;
+      }
+      if (elements.fuelMeter) {
+        elements.fuelMeter.style.setProperty("--fuel-level", `${fuelCurrent / fuelMaximum * 100}%`);
+        elements.fuelMeter.setAttribute("aria-valuemax", String(fuelMaximum));
+        elements.fuelMeter.setAttribute("aria-valuenow", String(fuelCurrent));
+        elements.fuelMeter.setAttribute("aria-valuetext", `${fuelCurrent} of ${fuelMaximum} fuel`);
+      }
+      if (elements.fuelAlert) {
+        const survival = snapshot.survival || { gameOver: integrity.gameOver || fuel.gameOver };
+        elements.fuelAlert.hidden = !fuel.enabled || !fuel.warningText || survival.gameOver;
+        elements.fuelAlert.classList.toggle("is-low", fuel.warningText === "LOW FUEL");
+      }
+      if (elements.fuelAlertText) {
+        elements.fuelAlertText.textContent = fuel.warningText || "";
       }
       elements.hudAlt.textContent = `ALT. ${snapshot.position.y.toFixed(2)}`;
       elements.hudHeading.textContent = `HDG. ${heading}`;
@@ -134,19 +170,29 @@
         elements.missionFeedback.hidden = !mission.feedback;
         elements.missionFeedback.textContent = mission.feedback || "";
       }
+      const survival = snapshot.survival || {
+        gameOver: Boolean(integrity.gameOver || fuel.gameOver),
+        reasons: integrity.gameOver ? ["HULL FAILURE"] : (fuel.gameOver ? ["FUEL EXHAUSTED"] : []),
+        reasonText: integrity.gameOver ? "HULL FAILURE" : (fuel.gameOver ? "FUEL EXHAUSTED" : "")
+      };
       const completion = mission.completion;
       if (elements.missionComplete) {
-        elements.missionComplete.hidden = !completion || integrity.gameOver;
+        elements.missionComplete.hidden = !completion || survival.gameOver;
         if (completion && elements.missionCompleteTitle && elements.missionCompleteStats) {
           elements.missionCompleteTitle.textContent = "MISSION COMPLETE";
           elements.missionCompleteStats.textContent = `TARGETS: ${completion.acquiredTargets}/${completion.totalTargets} // TIME: ${completion.elapsedSeconds.toFixed(1)} SEC`;
         }
       }
       if (elements.gameOver) {
-        elements.gameOver.hidden = !integrity.gameOver;
-        if (integrity.gameOver) {
-          if (elements.gameOverReason) elements.gameOverReason.textContent = "HULL FAILURE";
-          if (elements.gameOverStats) elements.gameOverStats.textContent = `FINAL COLLISIONS: ${snapshot.collisionCount || 0}`;
+        elements.gameOver.hidden = !survival.gameOver;
+        if (survival.gameOver) {
+          if (elements.gameOverReason) elements.gameOverReason.textContent = survival.reasonText || "GAME OVER";
+          if (elements.gameOverStats) {
+            const stats = [];
+            if (integrity.enabled) stats.push(`FINAL COLLISIONS: ${snapshot.collisionCount || 0}`);
+            if (fuel.enabled) stats.push(`FUEL: ${Math.max(0, Math.round(fuelCurrent))}/${fuelMaximum}`);
+            elements.gameOverStats.textContent = stats.join(" // ");
+          }
         }
       }
       setVisible(snapshot.effects.hud);

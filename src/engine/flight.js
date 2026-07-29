@@ -276,6 +276,17 @@
       };
     }
 
+    function descendToGround(deltaTime, descentSpeed) {
+      const seconds = Math.max(0, Number(deltaTime) || 0);
+      const speed = Number.isFinite(descentSpeed) && descentSpeed > 0 ? descentSpeed : 18;
+      const descent = moveCameraAlongAxis("y", -speed * seconds);
+      activeContactKeys.clear();
+      return {
+        landed: descent.blocked || camera.y <= minimumAltitude,
+        contacts: descent.contacts
+      };
+    }
+
     function getSnapshot() {
       return {
         camera: copyCamera(camera),
@@ -293,6 +304,7 @@
       resetCollisionIncidents,
       cycleSpeed,
       update,
+      descendToGround,
       getSnapshot
     };
   }

@@ -110,6 +110,9 @@
       landmarkAccents: null
     };
     const missionMarkerBuffer = gl.createBuffer();
+    const fuelBeamBuffer = gl.createBuffer();
+    let fuelBeamSignature = "";
+    let fuelBeamVertexCount = 0;
     const missionTransmitter = {
       halfWidth: 0.42,
       halfHeight: 0.34,
@@ -231,6 +234,28 @@
       return createGeometry(data, 3);
     }
 
+    function createFuelBarrelGeometry() {
+      const data = [];
+      const segments = 8;
+      const radius = 0.42;
+      const bottom = -0.55;
+      const top = 0.55;
+      for (let segment = 0; segment < segments; segment += 1) {
+        const angle = segment / segments * Math.PI * 2;
+        const nextAngle = (segment + 1) / segments * Math.PI * 2;
+        const lower = [Math.cos(angle) * radius, bottom, Math.sin(angle) * radius];
+        const lowerNext = [Math.cos(nextAngle) * radius, bottom, Math.sin(nextAngle) * radius];
+        const upper = [Math.cos(angle) * radius, top, Math.sin(angle) * radius];
+        const upperNext = [Math.cos(nextAngle) * radius, top, Math.sin(nextAngle) * radius];
+        addLine(data, lower, lowerNext);
+        addLine(data, upper, upperNext);
+        addLine(data, lower, upper);
+      }
+      addLine(data, [-radius, -0.18, 0], [radius, -0.18, 0]);
+      addLine(data, [-radius, 0.18, 0], [radius, 0.18, 0]);
+      return createGeometry(data, 3);
+    }
+
     const starfieldGeometry = settings.starfield && typeof settings.starfield.getGeometry === "function"
       ? settings.starfield.getGeometry()
       : null;
@@ -285,6 +310,7 @@
     const roadLines = createGeometry(roadData, 3);
     // Immutable local-space geometry is positioned per active target with uPositionOffset.
     const missionTransmitterGeometry = createMissionTransmitterGeometry();
+    const fuelBarrelGeometry = createFuelBarrelGeometry();
     const skyGeometry = createSkyGeometry(150, 24, 48);
     const starGeometry = starfieldGeometry ? createGeometry(starfieldGeometry.data, starfieldGeometry.stride || 4) : null;
     const skyTexture = gl.createTexture();
@@ -481,6 +507,57 @@
       }
     }
 
+    function drawFuelPickups(pickups, frameState) {
+      if (!Array.isArray(pickups) || pickups.length === 0) {
+        fuelBeamSignature = "";
+        fuelBeamVertexCount = 0;
+        return;
+      }
+      const signature = pickups.map(pickup => [
+        pickup.id,
+        pickup.position.x,
+        pickup.position.y,
+        pickup.position.z,
+        pickup.beamHeight
+      ].join(":")).join("|");
+      if (signature !== fuelBeamSignature && fuelBeamBuffer) {
+        const beamData = [];
+        pickups.forEach(pickup => {
+          const position = pickup.position;
+          addLine(
+            beamData,
+            [position.x, position.y + 0.55, position.z],
+            [position.x, position.y + 0.55 + pickup.beamHeight, position.z]
+          );
+        });
+        gl.bindBuffer(gl.ARRAY_BUFFER, fuelBeamBuffer);
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(beamData), gl.DYNAMIC_DRAW);
+        fuelBeamVertexCount = beamData.length / 3;
+        fuelBeamSignature = signature;
+      }
+
+      gl.bindBuffer(gl.ARRAY_BUFFER, fuelBarrelGeometry.buffer);
+      gl.vertexAttribPointer(locations.position, 3, gl.FLOAT, false, 0, 0);
+      gl.uniform4fv(
+        locations.color,
+        frameState.analogVisionEnabled ? [1.0, 0.22, 0.08, 1] : [1.0, 0.04, 0.02, 1]
+      );
+      pickups.forEach(pickup => {
+        gl.uniform3f(locations.positionOffset, pickup.position.x, pickup.position.y, pickup.position.z);
+        gl.drawArrays(gl.LINES, 0, fuelBarrelGeometry.count);
+      });
+
+      if (fuelBeamBuffer && fuelBeamVertexCount > 0) {
+        // The beam shares the city depth buffer, so solid buildings correctly occlude it.
+        gl.bindBuffer(gl.ARRAY_BUFFER, fuelBeamBuffer);
+        gl.vertexAttribPointer(locations.position, 3, gl.FLOAT, false, 0, 0);
+        gl.uniform3f(locations.positionOffset, 0, 0, 0);
+        gl.uniform4fv(locations.color, [1.0, 0.0, 0.0, 0.92]);
+        gl.drawArrays(gl.LINES, 0, fuelBeamVertexCount);
+      }
+      gl.uniform3f(locations.positionOffset, 0, 0, 0);
+    }
+
     function drawSky(view) {
       gl.disable(gl.DEPTH_TEST);
       gl.disable(gl.BLEND);
@@ -577,6 +654,9 @@
       if (frameState && frameState.missionTargets) {
         drawMissionMarkers(frameState.missionTargets, frameState.time || 0, frameState);
       }
+      if (frameState && frameState.fuelPickups) {
+        drawFuelPickups(frameState.fuelPickups, { ...frameState, view });
+      }
     }
 
     function handleContextLost(event) {
@@ -600,9 +680,11 @@
       deleteGeometry(gridLines);
       deleteGeometry(roadLines);
       deleteGeometry(missionTransmitterGeometry);
+      deleteGeometry(fuelBarrelGeometry);
       deleteGeometry(skyGeometry);
       deleteGeometry(starGeometry);
       if (missionMarkerBuffer) gl.deleteBuffer(missionMarkerBuffer);
+      if (fuelBeamBuffer) gl.deleteBuffer(fuelBeamBuffer);
       gl.deleteTexture(skyTexture);
       if (starProgram) gl.deleteProgram(starProgram);
       gl.deleteProgram(program);

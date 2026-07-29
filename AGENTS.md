@@ -29,18 +29,19 @@ All production scripts are IIFEs loaded together at the end of `index.html`, wit
 3. `src/engine/city.js`
 4. `src/engine/flight.js`
 5. `src/engine/integrity.js`
-6. `src/engine/navigation.js`
-7. `src/engine/renderer.js`
-8. `src/engine/signal-hunt.js`
-9. `src/effects/analog-vision.js`
-10. `src/effects/digital-rain.js`
-11. `src/effects/starfield.js`
-12. `src/effects/navigation-signal.js`
-13. `src/audio/music.js`
-14. `src/ui/hud.js`
-15. `src/ui/controls.js`
-16. `src/engine/engine.js`
-17. `src/main.js`
+6. `src/engine/fuel.js`
+7. `src/engine/navigation.js`
+8. `src/engine/renderer.js`
+9. `src/engine/signal-hunt.js`
+10. `src/effects/analog-vision.js`
+11. `src/effects/digital-rain.js`
+12. `src/effects/starfield.js`
+13. `src/effects/navigation-signal.js`
+14. `src/audio/music.js`
+15. `src/ui/hud.js`
+16. `src/ui/controls.js`
+17. `src/engine/engine.js`
+18. `src/main.js`
 
 ## Implementation Notes
 

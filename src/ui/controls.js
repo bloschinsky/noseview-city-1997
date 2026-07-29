@@ -30,6 +30,7 @@
     const speedButton = documentRoot.getElementById("speed-button");
     const soundButton = documentRoot.getElementById("sound-button");
     const hullIntegrityButton = documentRoot.getElementById("hull-integrity-button");
+    const fuelEnduranceButton = documentRoot.getElementById("fuel-endurance-button");
     const resetButton = documentRoot.getElementById("reset-button");
     const regenerateButton = documentRoot.getElementById("regen-button");
     const missionStartButton = documentRoot.getElementById("mission-start-button");
@@ -57,6 +58,7 @@
     let soundAvailable = true;
     let soundPending = false;
     let hullIntegrityEnabled = false;
+    let fuelEnduranceEnabled = false;
 
     function listen(target, type, handler, listenerOptions) {
       target.addEventListener(type, handler, listenerOptions);
@@ -198,16 +200,22 @@
       soundEnabled = snapshot.sound.enabled;
       soundAvailable = snapshot.sound.available;
       const integrity = snapshot.integrity || { enabled: false, gameOver: false };
+      const fuel = snapshot.fuel || { enabled: false, gameOver: false };
+      const survival = snapshot.survival || { gameOver: Boolean(integrity.gameOver || fuel.gameOver) };
       hullIntegrityEnabled = Boolean(integrity.enabled);
+      fuelEnduranceEnabled = Boolean(fuel.enabled);
       updateToggleButton(hudButton, "HUD", hudEnabled);
       updateToggleButton(analogButton, "ANALOG VISION", analogEnabled);
       updateSoundButton();
       if (hullIntegrityButton) {
         updateToggleButton(hullIntegrityButton, "HULL INTEGRITY", hullIntegrityEnabled);
       }
+      if (fuelEnduranceButton) {
+        updateToggleButton(fuelEnduranceButton, "FUEL ENDURANCE", fuelEnduranceEnabled);
+      }
       speedButton.textContent = `SPEED: ${snapshot.speed.name}`;
-      updateMissionButtons(snapshot, Boolean(integrity.gameOver));
-      syncGameOverDialog(Boolean(integrity.gameOver));
+      updateMissionButtons(snapshot, Boolean(survival.gameOver));
+      syncGameOverDialog(Boolean(survival.gameOver));
     }
 
     documentRoot.querySelectorAll("[data-action]").forEach(button => {
@@ -397,6 +405,10 @@
     if (hullIntegrityButton) listen(hullIntegrityButton, "click", () => {
       hullIntegrityEnabled = engine.setHullIntegrityEnabled(!hullIntegrityEnabled);
       updateToggleButton(hullIntegrityButton, "HULL INTEGRITY", hullIntegrityEnabled);
+    });
+    if (fuelEnduranceButton) listen(fuelEnduranceButton, "click", () => {
+      fuelEnduranceEnabled = engine.setFuelEnduranceEnabled(!fuelEnduranceEnabled);
+      updateToggleButton(fuelEnduranceButton, "FUEL ENDURANCE", fuelEnduranceEnabled);
     });
 
     function destroy() {

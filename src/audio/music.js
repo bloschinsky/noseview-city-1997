@@ -486,6 +486,21 @@
       }
     }
 
+    function handleFuelEvent(event) {
+      if (!event || typeof event.type !== "string" || !canPlayNavigationCue()) return;
+      const now = audioContext.currentTime + 0.012;
+      if (event.type === "fuel-collected") {
+        scheduleNavigationTone(540, now, 0.07, 0.20, "square");
+        scheduleNavigationTone(760, now + 0.08, 0.08, 0.22, "square");
+        scheduleNavigationTone(1020, now + 0.17, 0.10, 0.24, "triangle");
+      } else if (event.type === "fuel-warning") {
+        const critical = event.warning === "FUEL CRITICAL";
+        duckMusic(now, critical ? 0.62 : 0.42);
+        scheduleNavigationTone(critical ? 310 : 440, now, 0.12, 0.23, "sawtooth");
+        scheduleNavigationTone(critical ? 240 : 360, now + 0.16, 0.14, 0.22, "sawtooth");
+      }
+    }
+
     async function setEnabled(nextEnabled) {
       if (destroyed) throw new Error("Music has been destroyed");
       const requested = Boolean(nextEnabled);
@@ -589,7 +604,16 @@
       if (canPlayNavigationCue()) scheduleCollisionCue();
     }
 
-    return { setEnabled, getState, handleNavigationEvent, handleMissionEvent, playCollisionCue, stopNavigationCues, destroy };
+    return {
+      setEnabled,
+      getState,
+      handleNavigationEvent,
+      handleMissionEvent,
+      handleFuelEvent,
+      playCollisionCue,
+      stopNavigationCues,
+      destroy
+    };
   }
 
   Noseview.audio.createMusic = createMusic;

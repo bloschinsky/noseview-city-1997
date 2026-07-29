@@ -573,52 +573,52 @@ Depends on: Milestone 7 shared Game Over and restart flow. Fuel depletion itself
 
 ### 8.1 Add the Fuel Endurance state model
 
-- [ ] Add a `FUEL ENDURANCE` gameplay toggle to Settings; keep it disabled by default.
-- [ ] Allow Fuel Endurance to run independently in Free Flight, alongside Signal Hunt, alongside Hull Integrity, or with both enabled together.
-- [ ] Implement fuel state and pickup lifecycle as a pure engine-side model, suggested as `src/engine/fuel.js`, rather than calculating depletion or collection in DOM handlers.
-- [ ] Start each run with `100 FUEL` and drain fuel continuously from bounded elapsed gameplay time so depletion is independent of frame rate and movement speed.
-- [ ] Pause depletion after Game Over and while the engine is stopped or destroyed; prevent a large restored-tab delta from emptying the tank instantly.
-- [ ] Expose current fuel, maximum fuel, low-fuel state, active pickup count, and game-over state through throttled telemetry.
-- [ ] Show `FUEL: current/max` as persistent readable text only while Fuel Endurance is enabled.
-- [ ] Add non-flashing `LOW FUEL` and `FUEL CRITICAL` text states that do not rely on color or sound alone.
-- [ ] Emit optional low-fuel and collection audio cues only through the existing lazy audio context while `SOUND` is enabled.
+- [x] Add a `FUEL ENDURANCE` gameplay toggle to Settings; keep it disabled by default.
+- [x] Allow Fuel Endurance to run independently in Free Flight, alongside Signal Hunt, alongside Hull Integrity, or with both enabled together.
+- [x] Implement fuel state and pickup lifecycle as a pure engine-side model, suggested as `src/engine/fuel.js`, rather than calculating depletion or collection in DOM handlers.
+- [x] Start each run with `100 FUEL` and drain fuel continuously from bounded elapsed gameplay time so depletion is independent of frame rate and movement speed.
+- [x] Pause depletion after Game Over and while the engine is stopped or destroyed; prevent a large restored-tab delta from emptying the tank instantly.
+- [x] Expose current fuel, maximum fuel, low-fuel state, active pickup count, and game-over state through throttled telemetry.
+- [x] Show `FUEL: current/max` as persistent readable text only while Fuel Endurance is enabled.
+- [x] Add non-flashing `LOW FUEL` and `FUEL CRITICAL` text states that do not rely on color or sound alone.
+- [x] Emit optional low-fuel and collection audio cues only through the existing lazy audio context while `SOUND` is enabled.
 
 ### 8.2 Generate and collect fuel barrels
 
-- [ ] Maintain three active fuel barrels during an enabled run and replace a collected barrel after a short respawn delay.
-- [ ] Generate barrel locations from the city seed and a run seed so placements are varied between runs but reproducible in tests.
-- [ ] Select from two explicit placement families: clear ground points and valid building-rooftop or landmark-platform anchors.
-- [ ] Keep ground barrels inside the navigation warning boundary, outside solid AABBs, away from the initial camera volume, and far enough from other active barrels.
-- [ ] Place rooftop barrels above a walkable roof or platform surface with enough horizontal margin for the camera collision radius and pickup trigger.
-- [ ] Exclude roofs, tower parts, and narrow ledges that cannot be approached without intersecting solid geometry.
-- [ ] Ensure every selected barrel is reachable and never spawn a barrel inside a building, below the ground, outside the navigation area, or directly on a Signal Hunt beacon.
-- [ ] Give every barrel a stable ID, placement type, position, host-structure metadata when applicable, and collection state.
-- [ ] Use a proximity trigger for collection; fuel barrels are pickups and must not add solid AABB colliders or increment the collision counter.
-- [ ] Refill by a tunable amount capped at maximum fuel, remove the collected barrel and its beam exactly once, then schedule one replacement at a different valid location.
-- [ ] Prevent immediate collection of a replacement by excluding the player's current pickup radius.
-- [ ] Clear pending respawns and stale pickup state on city generation, restart, disabling Fuel Endurance, and engine teardown.
+- [x] Maintain three active fuel barrels during an enabled run and replace a collected barrel after a short respawn delay.
+- [x] Generate barrel locations from the city seed and a run seed so placements are varied between runs but reproducible in tests.
+- [x] Select from two explicit placement families: clear ground points and valid building-rooftop or landmark-platform anchors.
+- [x] Keep ground barrels inside the navigation warning boundary, outside solid AABBs, away from the initial camera volume, and far enough from other active barrels.
+- [x] Place rooftop barrels above a walkable roof or platform surface with enough horizontal margin for the camera collision radius and pickup trigger.
+- [x] Exclude roofs, tower parts, and narrow ledges that cannot be approached without intersecting solid geometry.
+- [x] Ensure every selected barrel is reachable and never spawn a barrel inside a building, below the ground, outside the navigation area, or directly on a Signal Hunt beacon.
+- [x] Give every barrel a stable ID, placement type, position, host-structure metadata when applicable, and collection state.
+- [x] Use a proximity trigger for collection; fuel barrels are pickups and must not add solid AABB colliders or increment the collision counter.
+- [x] Refill by a tunable amount capped at maximum fuel, remove the collected barrel and its beam exactly once, then schedule one replacement at a different valid location.
+- [x] Prevent immediate collection of a replacement by excluding the player's current pickup radius.
+- [x] Clear pending respawns and stale pickup state on city generation, restart, disabling Fuel Endurance, and engine teardown.
 
 ### 8.3 Render barrels and locator beams
 
-- [ ] Render a small low-poly fuel barrel that matches the existing primitive wireframe city style and remains distinguishable from Signal Hunt beacons.
-- [ ] Render one straight bright-red vertical beam from the top of each active barrel toward a capped sky height.
-- [ ] Keep the beam red and readable against default rendering, Digital Rain, Starfield, navigation degradation, and Analog Vision without turning it into a flashing effect.
-- [ ] Use a static beam in reduced-motion mode; any optional pulse must be restrained and disabled when reduced motion is requested.
-- [ ] Batch barrel and beam geometry where practical and avoid allocating WebGL buffers every frame.
-- [ ] After the pickup pass, restore the main program, depth test, blending, bound buffers, and vertex attributes required by later rendering.
-- [ ] Remove barrel and beam geometry immediately after collection and rebuild it deterministically after respawn or city generation.
+- [x] Render a small low-poly fuel barrel that matches the existing primitive wireframe city style and remains distinguishable from Signal Hunt beacons.
+- [x] Render one straight bright-red vertical beam from the top of each active barrel toward a capped sky height.
+- [x] Keep the beam red and readable against default rendering, Digital Rain, Starfield, navigation degradation, and Analog Vision without turning it into a flashing effect.
+- [x] Use a static beam in reduced-motion mode; any optional pulse must be restrained and disabled when reduced motion is requested.
+- [x] Batch barrel and beam geometry where practical and avoid allocating WebGL buffers every frame.
+- [x] After the pickup pass, restore the main program, depth test, blending, bound buffers, and vertex attributes required by later rendering.
+- [x] Remove barrel and beam geometry immediately after collection and rebuild it deterministically after respawn or city generation.
 
 ### 8.4 Integrate empty-fuel and combined survival behavior
 
-- [ ] At zero fuel, emit Game Over exactly once with the text reason `FUEL EXHAUSTED`, clear held movement, and stop mission timing/scanning.
-- [ ] Reuse the focus-managed Game Over dialog introduced for Hull Integrity rather than creating competing overlays.
-- [ ] If Hull Integrity and Fuel Endurance reach zero in the same update, show one Game Over state with deterministic combined failure reasons.
-- [ ] Make `RESTART GAME` restore all enabled survival resources, reset collision count and fuel barrels, reset the camera, and restart the active Signal Hunt attempt if one was active.
-- [ ] Starting or replaying a mission while Fuel Endurance is enabled begins a fresh full-fuel run with newly generated barrel placements.
-- [ ] Aborting a mission preserves current fuel and active barrels because Fuel Endurance is independent of the mission.
-- [ ] Generating a new city begins a fresh full-fuel run and generates pickups only from the new city's surfaces.
-- [ ] Disabling Fuel Endurance immediately stops depletion and removes all barrels, beams, warnings, and fuel-only Game Over behavior without changing Hull Integrity or the selected mission.
-- [ ] Add pure-logic tests for depletion, delta-time bounds, refill capping, deterministic placement, valid ground and rooftop anchors, collection, respawn, zero fuel, restart, combined Hull Integrity behavior, disable cleanup, and teardown.
+- [x] At zero fuel, clear held movement and descend to the first solid surface beneath the camera — otherwise ground level — before emitting Game Over exactly once with the text reason `FUEL EXHAUSTED`; mission timing/scanning stop during the descent.
+- [x] Reuse the focus-managed Game Over dialog introduced for Hull Integrity rather than creating competing overlays.
+- [x] If Hull Integrity and Fuel Endurance reach zero in the same update, show one Game Over state with deterministic combined failure reasons.
+- [x] Make `RESTART GAME` restore all enabled survival resources, reset collision count and fuel barrels, reset the camera, and restart the active Signal Hunt attempt if one was active.
+- [x] Starting or replaying a mission while Fuel Endurance is enabled begins a fresh full-fuel run with newly generated barrel placements.
+- [x] Aborting a mission preserves current fuel and active barrels because Fuel Endurance is independent of the mission.
+- [x] Generating a new city begins a fresh full-fuel run and generates pickups only from the new city's surfaces.
+- [x] Disabling Fuel Endurance immediately stops depletion and removes all barrels, beams, warnings, and fuel-only Game Over behavior without changing Hull Integrity or the selected mission.
+- [x] Add pure-logic tests for depletion, delta-time bounds, refill capping, deterministic placement, valid ground and rooftop anchors, collection, respawn, zero fuel, restart, combined Hull Integrity behavior, disable cleanup, and teardown.
 
 Initial tuning values:
 
@@ -637,14 +637,14 @@ These values are named configuration defaults and must be tuned through playtest
 
 ### 8.5 Integration, documentation, and delivery
 
-- [ ] Add any new classic script to both `index.html` and `tests.html` in the same deterministic dependency order and update `AGENTS.md` if that order changes.
-- [ ] Document Fuel Endurance, barrel collection, fuel reset policy, and its use of the shared restart flow in `README.md`.
+- [x] Add any new classic script to both `index.html` and `tests.html` in the same deterministic dependency order and update `AGENTS.md` if that order changes.
+- [x] Document Fuel Endurance, barrel collection, fuel reset policy, and its use of the shared restart flow in `README.md`.
 - [ ] Manually verify Free Flight and Signal Hunt with Fuel Endurance enabled, both with and without Hull Integrity.
 - [ ] Manually verify ground and rooftop barrel placement, collection, replacement, low-fuel warnings, and zero-fuel Game Over.
 - [ ] Verify red locator beams with default rendering, Digital Rain, Starfield, Analog Vision, navigation degradation, and reduced motion.
 - [ ] Verify the Settings and shared Game Over dialogs on desktop and narrow layouts, including keyboard focus restoration.
-- [ ] Verify that Fuel Endurance remains disabled by default and that fuel, warnings, and game-over text remain readable without the HUD.
-- [ ] Apply the required visible `REV` minor bump when the feature is implemented.
+- [x] Verify that Fuel Endurance remains disabled by default and that fuel, warnings, and game-over text remain readable without the HUD.
+- [x] Apply the required visible `REV` minor bump when the feature is implemented.
 
 ### Acceptance criteria
 

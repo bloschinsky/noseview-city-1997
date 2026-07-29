@@ -383,6 +383,112 @@
     }
   }
 
+  async function runCombinedSurvivalEngineCase() {
+    const canvas = root.document.createElement("canvas");
+    canvas.width = 64;
+    canvas.height = 64;
+    canvas.className = "test-canvas";
+    root.document.body.appendChild(canvas);
+    const telemetry = [];
+    const originalFlightFactory = Noseview.flight.createFlightModel;
+    const originalRequestAnimationFrame = root.requestAnimationFrame;
+    const originalCancelAnimationFrame = root.cancelAnimationFrame;
+    let scheduledFrame = null;
+    const camera = { x: 0, y: 2.4, z: 60, yaw: 0, pitch: 0 };
+    const flight = {
+      setControl() {},
+      clearControls() {},
+      reset() {},
+      setInitialCamera() {},
+      setColliders() {},
+      resetCollisionIncidents() {},
+      cycleSpeed() { return { name: "NORMAL", move: 10, turn: 65 }; },
+      descendToGround(deltaTime, speed) {
+        camera.y = Math.max(0.6, camera.y - deltaTime * speed);
+        return { landed: camera.y === 0.6 };
+      },
+      update() {
+        return {
+          blocked: true,
+          incidents: [{
+            type: "collision",
+            surface: "STRUCTURE",
+            colliderId: "combined-contact",
+            impactSequence: 1
+          }]
+        };
+      },
+      getSnapshot() {
+        return { camera: { ...camera }, speed: { name: "NORMAL", move: 10, turn: 65 }, minimumAltitude: 0.6 };
+      }
+    };
+    let engine;
+    try {
+      Noseview.flight.createFlightModel = () => flight;
+      engine = Noseview.createNoseviewEngine(canvas, {
+        integrity: { damagePerIncident: 100 },
+        fuel: {
+          maximum: 0.1,
+          drainPerSecond: 1,
+          lowThreshold: 0.1,
+          criticalThreshold: 0.05,
+          maximumDeltaSeconds: 1
+        },
+        onTelemetry(snapshot) { telemetry.push(snapshot); }
+      });
+      Noseview.flight.createFlightModel = originalFlightFactory;
+      root.requestAnimationFrame = callback => {
+        scheduledFrame = callback;
+        return 1;
+      };
+      root.cancelAnimationFrame = () => { scheduledFrame = null; };
+      engine.startSignalHunt(101);
+      engine.setHullIntegrityEnabled(true);
+      engine.setFuelEnduranceEnabled(true);
+      engine.start();
+      const callback = scheduledFrame;
+      scheduledFrame = null;
+      callback(root.performance.now() + 150);
+      const falling = telemetry[telemetry.length - 1];
+      assert(falling.survival.falling && !falling.survival.gameOver, "Fuel exhaustion did not begin the controlled descent");
+      assert(falling.position.y < 2.4 && falling.position.y > 0.6, "Fuel descent did not lower the camera before Game Over");
+      assert(falling.mission.timeRemaining === 120, "Mission timing continued during the fuel descent");
+      const landingCallback = scheduledFrame;
+      scheduledFrame = null;
+      landingCallback(root.performance.now() + 210);
+      const failed = telemetry[telemetry.length - 1];
+      assert(failed.survival.gameOver, "Combined survival failure did not enter Game Over");
+      assert(
+        failed.survival.reasonText === "HULL FAILURE + FUEL EXHAUSTED",
+        "Simultaneous Hull and Fuel failure order was not deterministic"
+      );
+      assert(failed.integrity.current === 0 && failed.fuel.current === 0, "Combined failure did not exhaust both resources");
+      engine.restartGame();
+      const restarted = telemetry[telemetry.length - 1];
+      assert(!restarted.survival.gameOver, "Shared restart left survival Game Over active");
+      assert(restarted.integrity.current === 100 && restarted.fuel.current === 0.1, "Shared restart did not restore both resources");
+      assert(restarted.collisionCount === 0, "Shared restart did not clear collision count");
+      assert(restarted.fuel.activePickupCount === 3, "Shared restart did not rebuild fuel barrels");
+      assert(restarted.mission.mode === "ACTIVE" && restarted.mission.timeRemaining === 120, "Shared restart did not restart the active mission");
+      engine.abortSignalHunt();
+      const aborted = telemetry[telemetry.length - 1];
+      assert(aborted.fuel.current === 0.1 && aborted.fuel.activePickupCount === 3, "Mission abort changed independent Fuel state");
+      engine.startSignalHunt(102);
+      const freshMission = telemetry[telemetry.length - 1];
+      assert(freshMission.fuel.current === 0.1 && freshMission.fuel.activePickupCount === 3, "Mission start did not begin a fresh Fuel run");
+      engine.setFuelEnduranceEnabled(false);
+      const disabled = telemetry[telemetry.length - 1];
+      assert(!disabled.fuel.enabled && disabled.fuel.activePickupCount === 0, "Disabling Fuel left active pickup state");
+      assert(disabled.integrity.enabled && disabled.mission.mode === "ACTIVE", "Disabling Fuel changed Hull Integrity or the mission");
+    } finally {
+      Noseview.flight.createFlightModel = originalFlightFactory;
+      root.requestAnimationFrame = originalRequestAnimationFrame;
+      root.cancelAnimationFrame = originalCancelAnimationFrame;
+      if (engine) await engine.destroy();
+      canvas.remove();
+    }
+  }
+
   function createFakeAudioContextHarness() {
     const counters = { contexts: 0, oscillators: 0, bufferSources: 0, stoppedSources: 0 };
 
@@ -559,6 +665,7 @@
         <span id="heading"></span><span id="pitch"></span><span id="speed"></span>
         <span id="fps"></span><span id="building-count"></span><span id="collision-count"></span>
         <div id="hull-status-row" hidden>HULL: <span id="hull-integrity"><span class="hull-meter-fill"></span></span></div>
+        <div id="fuel-status-row" hidden>FUEL: <span id="fuel-level"></span><span id="fuel-meter"><span class="fuel-meter-fill"></span></span></div>
         <span id="hud-alt"></span><span id="hud-hdg"></span>
         <span id="mission-mode"></span><span id="mission-timer"></span>
         <span id="mission-progress"></span><span id="mission-lock"></span>
@@ -571,6 +678,7 @@
         <canvas id="navigation-noise-canvas" width="32" height="24"></canvas>
         <div id="navigation-alert" hidden><strong id="navigation-message"></strong><span id="navigation-countdown" hidden></span></div>
         <div id="hull-critical-alert" hidden></div>
+        <div id="fuel-alert" hidden><strong id="fuel-alert-text"></strong></div>
         <span id="navigation-status" class="blink">ONLINE</span>
       </div>`;
     root.document.body.appendChild(fixture);
@@ -589,6 +697,8 @@
       buildingCount: 26,
       collisionCount: 7,
       integrity: { enabled: true, current: 30, maximum: 100, low: true, criticalText: "HULL CRITICAL", gameOver: false },
+      fuel: { enabled: true, current: 24.5, maximum: 100, low: true, critical: false, warningText: "LOW FUEL", gameOver: false },
+      survival: { gameOver: false, reasons: [], reasonText: "" },
       speed: { name: "NORMAL", move: 10 },
       effects: { hud: false, analogVision: false, digitalRain: false },
       sound: { available: true, enabled: false },
@@ -616,6 +726,12 @@
       assert(fixture.querySelector("#hull-integrity").style.getPropertyValue("--hull-level") === "30%", "Hull meter level changed");
       assert(fixture.querySelector("#hull-integrity").getAttribute("aria-valuetext") === "30 of 100 hull integrity", "Hull meter lost its accessible value");
       assert(!fixture.querySelector("#hull-critical-alert").hidden, "Low hull state lacked a flight-HUD warning");
+      assert(!fixture.querySelector("#fuel-status-row").hidden, "Fuel text was hidden while Fuel Endurance was enabled");
+      assert(fixture.querySelector("#fuel-level").textContent === "24.5/100", "Fuel telemetry formatting changed");
+      assert(fixture.querySelector("#fuel-meter").style.getPropertyValue("--fuel-level") === "24.5%", "Fuel meter level changed");
+      assert(fixture.querySelector("#fuel-meter").getAttribute("aria-valuetext") === "24.5 of 100 fuel", "Fuel meter lost its accessible value");
+      assert(!fixture.querySelector("#fuel-alert").hidden, "Low fuel lacked a persistent text warning");
+      assert(fixture.querySelector("#fuel-alert-text").textContent === "LOW FUEL", "Low-fuel warning text changed");
       assert(!fixture.querySelector("#navigation-alert").hidden, "Warning text was hidden with HUD off");
       assert(fixture.querySelector("#navigation-message").textContent === "NAVIGATION LIMIT", "Warning label changed");
       assert(!fixture.querySelector("#navigation-status").classList.contains("blink"), "Warning status still blinks");
@@ -624,11 +740,16 @@
       const staticFrame = fixture.querySelector("canvas").toDataURL();
 
       snapshot.integrity = { ...snapshot.integrity, current: 0, gameOver: true };
+      snapshot.survival = { gameOver: true, reasons: ["HULL FAILURE"], reasonText: "HULL FAILURE" };
       hud.update(snapshot);
       assert(!fixture.querySelector("#game-over").hidden, "Hull Game Over text was hidden");
-      assert(fixture.querySelector("#game-over-stats").textContent === "FINAL COLLISIONS: 7", "Game Over collision summary changed");
+      assert(
+        fixture.querySelector("#game-over-stats").textContent === "FINAL COLLISIONS: 7 // FUEL: 25/100",
+        "Combined survival summary changed"
+      );
       assert(fixture.querySelector("#hull-critical-alert").hidden, "Hull Critical remained behind Game Over");
       snapshot.integrity = { ...snapshot.integrity, current: 100, low: false, criticalText: "", gameOver: false };
+      snapshot.survival = { gameOver: false, reasons: [], reasonText: "" };
 
       snapshot.navigation = { state: "CRITICAL", distance: 125, degradation: 0.583, countdownSeconds: 1.25 };
       hud.update(snapshot);
@@ -753,7 +874,7 @@
     const fixture = root.document.createElement("div");
     fixture.innerHTML = `
       <button id="settings-button"></button>
-      <div id="settings-modal" hidden><button id="settings-close"></button><button id="hull-integrity-button"></button></div>
+      <div id="settings-modal" hidden><button id="settings-close"></button><button id="hull-integrity-button"></button><button id="fuel-endurance-button"></button></div>
       <button id="hud-button"></button><button id="analog-button"></button>
       <button id="digital-rain-button"></button><button id="starfield-button"></button><button id="speed-button"></button>
       <button id="sound-button"></button><button id="reset-button"></button>
@@ -766,6 +887,7 @@
       <div id="game-over" role="dialog" hidden><button id="game-restart-button">RESTART GAME</button></div>`;
     root.document.body.appendChild(fixture);
     let restartCalls = 0;
+    let fuelToggleCalls = 0;
     const engine = {
       setControl() {},
       resetCamera() {},
@@ -775,6 +897,7 @@
       replaySignalHunt() {},
       restartGame() { restartCalls += 1; },
       setHullIntegrityEnabled(enabled) { return enabled; },
+      setFuelEnduranceEnabled(enabled) { fuelToggleCalls += 1; return enabled; },
       cycleSpeed() { return { name: "NORMAL" }; },
       setEffect(_name, enabled) { return enabled; },
       setSkyMode(mode) { return mode; },
@@ -791,17 +914,22 @@
       sound: { available: true, enabled: false },
       speed: { name: "NORMAL" },
       mission: { mode: "ACTIVE" },
-      integrity: { enabled: true, gameOver: false }
+      integrity: { enabled: true, gameOver: false },
+      fuel: { enabled: false, gameOver: false },
+      survival: { gameOver: false }
     };
     const settings = fixture.querySelector("#settings-modal");
     const gameOver = fixture.querySelector("#game-over");
     const restart = fixture.querySelector("#game-restart-button");
     try {
+      fixture.querySelector("#fuel-endurance-button").click();
+      assert(fuelToggleCalls === 1, "Fuel Endurance toggle did not call the engine");
       fixture.querySelector("#settings-button").click();
       assert(!settings.hidden, "Settings did not open before Hull failure");
       controls.updateTelemetry({
         ...baseSnapshot,
-        integrity: { enabled: true, gameOver: true }
+        integrity: { enabled: true, gameOver: true },
+        survival: { gameOver: true, reasonText: "HULL FAILURE" }
       });
       assert(settings.hidden && !gameOver.hidden, "Hull Game Over did not replace Settings");
       assert(root.document.activeElement === restart, "Hull Game Over did not focus Restart Game");
@@ -830,6 +958,7 @@
     await runCase({ name: "engine hard boundary resets flight and input", run: runForcedNavigationResetCase });
     await runCase({ name: "normalized collision incidents drive audio and run telemetry once", run: runCollisionIncidentEngineCase });
     await runCase({ name: "Hull Integrity failure pauses and restarts an active mission", run: runHullIntegrityEngineCase });
+    await runCase({ name: "Hull and Fuel share one deterministic combined Game Over", run: runCombinedSurvivalEngineCase });
     await runCase({ name: "navigation audio stays lazy and schedules procedural cues", run: runNavigationAudioCase });
     await runCase({ name: "navigation warnings remain accessible with reduced motion", run: runNavigationUiCase });
     await runCase({ name: "mission completion dialog traps and restores focus", run: runMissionCompletionFocusCase });

@@ -13,7 +13,7 @@
       <tr>
         <td>
           <h1 class="logo">NOSEVIEW 1997</h1>
-          <div class="subtitle">CITY NAVIGATION TERMINAL // REV. 1.10.1</div>
+          <div class="subtitle">CITY NAVIGATION TERMINAL // REV. 1.11.2</div>
           <div class="blink">● SYSTEM ONLINE ●</div>
         </td>
       </tr>
@@ -53,6 +53,9 @@
               </div>
               <div id="hull-critical-alert" class="hull-critical-alert" role="status" aria-live="polite" aria-atomic="true" hidden>
                 <strong>HULL CRITICAL</strong>
+              </div>
+              <div id="fuel-alert" class="fuel-alert" role="status" aria-live="polite" aria-atomic="true" hidden>
+                <strong id="fuel-alert-text"></strong>
               </div>
               <div id="mission-feedback" class="mission-feedback" role="status" aria-live="assertive" aria-atomic="true" hidden></div>
               <div id="mission-complete" class="mission-complete" role="dialog" aria-modal="true" aria-labelledby="mission-complete-title" aria-describedby="mission-complete-stats" hidden>
@@ -100,6 +103,14 @@
                   HULL INTEGRITY
                   <span id="hull-integrity" class="hull-meter" role="progressbar" aria-label="Hull integrity" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" aria-valuetext="100 of 100 hull integrity">
                     <span class="hull-meter-fill"></span>
+                  </span>
+                </td>
+              </tr>
+              <tr id="fuel-status-row" hidden>
+                <td colspan="5">
+                  FUEL: <span id="fuel-level">100/100</span>
+                  <span id="fuel-meter" class="fuel-meter" role="progressbar" aria-label="Fuel reserve" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100" aria-valuetext="100 of 100 fuel">
+                    <span class="fuel-meter-fill"></span>
                   </span>
                 </td>
               </tr>
@@ -199,7 +210,8 @@
         <div class="settings-group">
           <div class="settings-group-title">GAMEPLAY</div>
           <button id="hull-integrity-button" type="button" aria-pressed="false">HULL INTEGRITY: OFF</button>
-          <p>Optional collision damage. Normalized impacts reduce HP; restart after hull failure.</p>
+          <button id="fuel-endurance-button" type="button" aria-pressed="false">FUEL ENDURANCE: OFF</button>
+          <p>Optional collision damage and fuel endurance. Enable either survival system independently.</p>
         </div>
       </div>
     </div>
@@ -211,6 +223,7 @@
   <script src="src/engine/city.js"></script>
   <script src="src/engine/flight.js"></script>
   <script src="src/engine/integrity.js"></script>
+  <script src="src/engine/fuel.js"></script>
   <script src="src/engine/navigation.js"></script>
   <script src="src/engine/renderer.js"></script>
   <script src="src/engine/signal-hunt.js"></script>

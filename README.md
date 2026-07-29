@@ -17,6 +17,7 @@ A retro-futuristic navigation terminal for exploring a procedurally generated 3D
 - Three deterministic procedural landmarks in every 26-structure city
 - Normalized collision records for building walls, rooftops, landmarks, and ground contact
 - Optional Hull Integrity survival rules with collision damage and an accessible restart flow
+- Optional Fuel Endurance with deterministic ground/rooftop pickups and shared survival restart
 - Ground-floor protection and automatic navigation-boundary recovery
 - Three speed modes and procedural city regeneration
 - HUD with position, altitude, heading, pitch, and FPS data
@@ -91,6 +92,12 @@ The persistent flight-status panel shows `COLLISIONS: N`. One physical contact e
 
 At zero HP, flight input and Signal Hunt timing/scanning pause while rendering and controls remain responsive. The focus-managed `GAME OVER` dialog reports the final collision count. `RESTART GAME` restores full HP, clears collision records and held input, resets the camera, and restarts the current Signal Hunt attempt when one is active. Starting or replaying Signal Hunt and generating a new city also begin a fresh full-HP run. Resetting position, automatic navigation recovery, or aborting a mission preserves HP. Disabling Hull Integrity immediately removes its damage and Game Over rules without clearing collision records or changing the selected mission.
 
+## Fuel Endurance
+
+`FUEL ENDURANCE` is an independent optional gameplay setting and is off by default. It can run in Free Flight or Signal Hunt, with or without Hull Integrity. An enabled run starts at `100 FUEL`, drains one unit per second, and keeps three deterministic fuel barrels active on clear ground, rooftops, or a valid landmark platform. Each wireframe barrel has a straight red locator beam and refills up to 35 fuel when the camera enters its pickup radius; a replacement appears at a different valid location after five seconds.
+
+The flight-status panel keeps `FUEL: current/100` readable next to a blue fuel meter even when the optional HUD is hidden. `LOW FUEL` appears at 25 and `FUEL CRITICAL` at 10 without flashing. At zero, flight controls lock and the camera descends to the first solid surface beneath it — a roof or platform when present, otherwise ground level — before the shared focus-managed `GAME OVER` dialog reports `FUEL EXHAUSTED`; simultaneous hull and fuel failure is shown once in deterministic order. `RESTART GAME`, starting or replaying Signal Hunt, and generating a city restore all enabled survival resources and rebuild the barrel route. Resetting position, automatic navigation recovery, and aborting Signal Hunt preserve fuel and active barrels. Disabling Fuel Endurance immediately stops drain and removes fuel pickups, beams, warnings, and fuel-only Game Over state without changing Hull Integrity or mission selection.
+
 ## Display Effects
 
 Settings offers `DIGITAL RAIN` and `STARFIELD` as one exclusive sky selection: turning on either turns the other off, and pressing the active option again returns to the default black sky. Starfield is a fixed 700-point white WebGL sky with no motion or regeneration, including when reduced motion is enabled.
@@ -101,7 +108,7 @@ Open `index.html` in a modern browser with WebGL support. No installation or bui
 
 ## Architecture
 
-The canonical edition uses ordered classic scripts under `src/`, with no native modules, dependencies, bundler, or generated runtime bundle. The framework-agnostic engine is created through `window.Noseview.createNoseviewEngine()`; rendering, city generation, flight/collisions, Hull Integrity, navigation boundaries, effects, audio, HUD, and page controls remain separate subsystems behind that API.
+The canonical edition uses ordered classic scripts under `src/`, with no native modules, dependencies, bundler, or generated runtime bundle. The framework-agnostic engine is created through `window.Noseview.createNoseviewEngine()`; rendering, city generation, flight/collisions, Hull Integrity, Fuel Endurance, navigation boundaries, effects, audio, HUD, and page controls remain separate subsystems behind that API.
 
 City generation returns unified structure metadata together with separate building and landmark collections. Every seed promotes three of the 26 structure lots into a telecommunications tower, needle tower, and helipad/antenna complex, so landmarks do not increase the displayed structure count. Solid landmark parts generate their render geometry and AABB colliders together, and each landmark exposes a stable future Signal Hunt anchor.
 

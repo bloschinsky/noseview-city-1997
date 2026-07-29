@@ -2,7 +2,7 @@
   "use strict";
 
   const Noseview = root.Noseview;
-  if (!Noseview || !Noseview.city || !Noseview.flight || !Noseview.integrity || !Noseview.navigation || !Noseview.renderer) {
+  if (!Noseview || !Noseview.city || !Noseview.flight || !Noseview.integrity || !Noseview.fuel || !Noseview.navigation || !Noseview.renderer) {
     throw new Error("Engine dependencies must load before engine.js");
   }
 
@@ -15,12 +15,15 @@
     };
   }
 
+  const FUEL_CRASH_DESCENT_SPEED = 18;
+
   function createNoopMusic() {
     return {
       setEnabled() { return Promise.resolve(false); },
       getState() { return { available: false, enabled: false }; },
       handleNavigationEvent() {},
       handleMissionEvent() {},
+      handleFuelEvent() {},
       playCollisionCue() {},
       stopNavigationCues() {},
       destroy() { return Promise.resolve(); }
@@ -39,9 +42,11 @@
     const onNavigationEvent = typeof settings.onNavigationEvent === "function" ? settings.onNavigationEvent : function () {};
     const onCollisionIncident = typeof settings.onCollisionIncident === "function" ? settings.onCollisionIncident : function () {};
     const onIntegrityEvent = typeof settings.onIntegrityEvent === "function" ? settings.onIntegrityEvent : function () {};
+    const onFuelEvent = typeof settings.onFuelEvent === "function" ? settings.onFuelEvent : function () {};
     const onError = typeof settings.onError === "function" ? settings.onError : function () {};
     const flight = Noseview.flight.createFlightModel();
     const integrity = Noseview.integrity.createIntegrityModel(settings.integrity);
+    const fuel = Noseview.fuel.createFuelModel(settings.fuel);
     const navigation = Noseview.navigation.createNavigationModel(settings.navigation);
     function createNoopMission() {
       const idle = {
@@ -83,6 +88,8 @@
     let smoothedFps = 60;
     let collisionCount = 0;
     let currentSeed = Noseview.city.DEFAULT_SEED;
+    let runSequence = 0;
+    let fuelCrashActive = false;
     let city = null;
     let navigationSnapshot;
     const effects = {
@@ -133,6 +140,19 @@
       }
     }
 
+    function reportFuelEvent(event) {
+      try {
+        if (typeof music.handleFuelEvent === "function") music.handleFuelEvent(event);
+      } catch (error) {
+        reportError(error);
+      }
+      try {
+        onFuelEvent(event);
+      } catch (error) {
+        reportError(error);
+      }
+    }
+
     function reportCollisionIncident(incident, timeSeconds) {
       collisionCount += 1;
       try {
@@ -152,10 +172,50 @@
       }
     }
 
+    function getMissionExclusions() {
+      if (typeof mission.getTargets !== "function") return [];
+      return mission.getTargets()
+        .filter(target => target && target.position)
+        .map(target => target.position);
+    }
+
+    function getSurvivalSnapshot() {
+      const integritySnapshot = integrity.getSnapshot();
+      const fuelSnapshot = fuel.getSnapshot();
+      if (fuelCrashActive) {
+        return {
+          gameOver: false,
+          falling: true,
+          reasons: [],
+          reasonText: ""
+        };
+      }
+      const reasons = [];
+      if (integritySnapshot.enabled && integritySnapshot.gameOver) reasons.push("HULL FAILURE");
+      if (fuelSnapshot.enabled && fuelSnapshot.gameOver) reasons.push("FUEL EXHAUSTED");
+      return {
+        gameOver: reasons.length > 0,
+        falling: false,
+        reasons,
+        reasonText: reasons.join(" + ")
+      };
+    }
+
     function resetRun() {
+      fuelCrashActive = false;
       collisionCount = 0;
       flight.resetCollisionIncidents();
       integrity.resetRun();
+      if (fuel.getSnapshot().enabled && city) {
+        runSequence += 1;
+        fuel.resetRun(
+          city,
+          (city.seed ^ Math.imul(runSequence, 0x9e3779b1)) >>> 0,
+          getMissionExclusions(),
+          flight.getSnapshot().camera
+        );
+        fuel.drainEvents().forEach(reportFuelEvent);
+      }
     }
 
     function stopNavigationAudioCues() {
@@ -215,6 +275,8 @@
         sound: { available: Boolean(sound.available), enabled: Boolean(sound.enabled) },
         collisionCount,
         integrity: integrity.getSnapshot(),
+        fuel: fuel.getSnapshot(),
+        survival: getSurvivalSnapshot(),
         navigation: { ...navigationSnapshot },
         mission: mission.getSnapshot()
       };
@@ -235,14 +297,13 @@
       const elapsedTime = Math.max(0, (time - previousTime) / 1000);
       const deltaTime = Math.min(elapsedTime, 0.05);
       previousTime = time;
-      const wasGameOver = integrity.getSnapshot().gameOver;
-      const flightResult = wasGameOver ? { blocked: false, incidents: [] } : flight.update(deltaTime);
+      const wasGameOver = getSurvivalSnapshot().gameOver;
+      const flightResult = wasGameOver || fuelCrashActive
+        ? { blocked: false, incidents: [] }
+        : flight.update(deltaTime);
       flightResult.incidents.forEach(incident => reportCollisionIncident(incident, time / 1000));
       const integrityEvents = integrity.drainEvents();
       integrityEvents.forEach(reportIntegrityEvent);
-      const integrityFailed = integrityEvents.some(event => event.type === "game-over");
-      const integritySnapshot = integrity.getSnapshot();
-      if (integritySnapshot.gameOver && !wasGameOver) flight.clearControls();
 
       let flightSnapshot = flight.getSnapshot();
       const previousNavigationState = navigationSnapshot.state;
@@ -277,10 +338,35 @@
         if (rainCanvas) renderer.updateSkyTexture(rainCanvas);
       }
 
+      let fuelEvents = [];
+      try {
+        fuel.update(elapsedTime, flightSnapshot.camera, { paused: wasGameOver });
+        fuelEvents = fuel.drainEvents();
+        fuelEvents.forEach(reportFuelEvent);
+      } catch (error) {
+        reportError(error);
+      }
+      if (fuelEvents.some(event => event.type === "fuel-empty")) {
+        fuelCrashActive = true;
+        flight.clearControls();
+      }
+      if (fuelCrashActive && typeof flight.descendToGround === "function") {
+        const descent = flight.descendToGround(deltaTime, FUEL_CRASH_DESCENT_SPEED);
+        flightSnapshot = flight.getSnapshot();
+        if (descent.landed) {
+          fuelCrashActive = false;
+          fuel.confirmGameOver();
+          fuel.drainEvents().forEach(reportFuelEvent);
+        }
+      }
+      const survivalSnapshot = getSurvivalSnapshot();
+      const survivalFailed = survivalSnapshot.gameOver && !wasGameOver;
+      if (survivalFailed) flight.clearControls();
+
       // Mission update, target and events
       let missionTargets = [];
       try {
-        if (!integritySnapshot.gameOver) mission.update(flightSnapshot.camera, elapsedTime);
+        if (!survivalSnapshot.gameOver && !survivalSnapshot.falling) mission.update(flightSnapshot.camera, elapsedTime);
         // Acquired targets remain visible during a hunt, but terminal states leave no stale beacon markers.
         missionTargets = mission.isActive() && typeof mission.getTargets === "function" ? mission.getTargets() : [];
         const missionEvents = mission.drainEvents();
@@ -293,13 +379,14 @@
         time,
         analogVisionEnabled: effects.analogVision,
         skyMode: effects.skyMode,
-        missionTargets
+        missionTargets,
+        fuelPickups: fuel.getPickups()
       });
       if (effects.analogVision) analogVision.update(time, deltaTime, canvas);
 
       smoothedFps += ((1 / Math.max(deltaTime, 0.001)) - smoothedFps) * 0.08;
 
-      emitTelemetry(time, navigationResult.stateChanged || navigationReset || integrityFailed);
+      emitTelemetry(time, navigationResult.stateChanged || navigationReset || survivalFailed);
       animationFrame = root.requestAnimationFrame(render);
     }
 
@@ -332,7 +419,6 @@
 
     function regenerateCity() {
       assertAlive();
-      resetRun();
       const seed = (Date.now() ^ Math.floor(Math.random() * 0xffffffff)) >>> 0;
       let replayMission = false;
       try {
@@ -363,12 +449,13 @@
           reportError(error);
         }
       }
+      resetRun();
       emitTelemetry(root.performance.now(), true);
     }
 
     function setControl(action, enabled) {
       assertAlive();
-      flight.setControl(action, integrity.getSnapshot().gameOver ? false : enabled);
+      flight.setControl(action, getSurvivalSnapshot().gameOver ? false : enabled);
     }
 
     function cycleSpeed() {
@@ -430,6 +517,7 @@
       await music.destroy();
       try { if (typeof mission.destroy === "function") mission.destroy(); } catch (_error) {}
       integrity.destroy();
+      fuel.destroy();
       renderer.destroy();
     }
 
@@ -481,9 +569,26 @@
       return snapshot.enabled;
     }
 
+    function setFuelEnduranceEnabled(enabled) {
+      assertAlive();
+      const snapshot = fuel.setEnabled(
+        enabled,
+        city,
+        (city.seed ^ Math.imul(runSequence + 1, 0x9e3779b1)) >>> 0,
+        getMissionExclusions(),
+        flight.getSnapshot().camera
+      );
+      if (snapshot.enabled) runSequence += 1;
+      if (!snapshot.enabled) fuelCrashActive = false;
+      fuel.drainEvents().forEach(reportFuelEvent);
+      if (getSurvivalSnapshot().gameOver) flight.clearControls();
+      emitTelemetry(root.performance.now(), true);
+      return snapshot.enabled;
+    }
+
     function restartGame() {
       assertAlive();
-      if (!integrity.getSnapshot().enabled) return integrity.getSnapshot();
+      if (!integrity.getSnapshot().enabled && !fuel.getSnapshot().enabled) return getSurvivalSnapshot();
       resetRun();
       try {
         if (typeof mission.isActive === "function" && mission.isActive()) {
@@ -497,7 +602,7 @@
       flight.reset();
       navigationSnapshot = navigation.reset(flight.getSnapshot().camera);
       emitTelemetry(root.performance.now(), true);
-      return integrity.getSnapshot();
+      return getSurvivalSnapshot();
     }
 
     return {
@@ -514,6 +619,7 @@
       abortSignalHunt,
       replaySignalHunt,
       setHullIntegrityEnabled,
+      setFuelEnduranceEnabled,
       restartGame,
       resetRun
     };

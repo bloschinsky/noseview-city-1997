@@ -24,6 +24,14 @@
     );
   }
 
+  function distanceSquared(a, b) {
+    return (a.x - b.x) ** 2 + (a.y - b.y) ** 2 + (a.z - b.z) ** 2;
+  }
+
+  function horizontalDistanceSquared(a, b) {
+    return (a.x - b.x) ** 2 + (a.z - b.z) ** 2;
+  }
+
   function getCases() {
     return [
       {
@@ -214,6 +222,20 @@
             flight.update(1);
             assertNear(flight.getSnapshot().camera.y, 0.6, 0.000001, `Vertical drift remained for speed ${speedIndex}`);
           });
+        }
+      },
+      {
+        name: "fuel descent lands on the first solid surface before ground",
+        run() {
+          const roof = { partId: "building-21-roof", minX: -4, maxX: 4, minY: 0, maxY: 4, minZ: -4, maxZ: 4 };
+          const flight = Noseview.flight.createFlightModel({
+            initialCamera: { x: 0, y: 10, z: 0, yaw: 0, pitch: 0 },
+            colliders: [roof]
+          });
+          const landing = flight.descendToGround(1, 18);
+          assert(landing.landed, "Fuel descent did not detect the rooftop landing");
+          assertNear(flight.getSnapshot().camera.y, 4.6, 0.002, "Fuel descent passed through the rooftop");
+          assert(landing.contacts.some(contact => contact.colliderId === roof.partId), "Fuel descent lost the rooftop contact");
         }
       },
       {
@@ -944,6 +966,115 @@
           model.destroy();
           model.handleCollision(incident, 3, 1);
           assert(model.getSnapshot().current === 100, "Destroyed integrity model accepted damage");
+        }
+      },
+      {
+        name: "fuel placement is deterministic and uses valid ground and rooftop anchors",
+        run() {
+          const city = Noseview.city.generateCity(19810001);
+          const spawn = Noseview.city.getMissionStart(city);
+          const exclusions = [{ x: 12, y: 8, z: -9 }];
+          const first = Noseview.fuel.createFuelModel();
+          const second = Noseview.fuel.createFuelModel();
+          first.setEnabled(true, city, 404, exclusions, spawn);
+          second.setEnabled(true, city, 404, exclusions, spawn);
+          const pickups = first.getPickups();
+          assert(JSON.stringify(pickups) === JSON.stringify(second.getPickups()), "Fuel placement changed for the same city and run seed");
+          second.resetRun(city, 405, exclusions, spawn);
+          assert(JSON.stringify(pickups) !== JSON.stringify(second.getPickups()), "Fuel placement did not vary between run seeds");
+          assert(pickups.length === 3, "Fuel run did not maintain three active barrels");
+          assert(pickups.some(pickup => pickup.placementType === "GROUND"), "Fuel run did not include a ground barrel");
+          assert(pickups.some(pickup => pickup.placementType !== "GROUND"), "Fuel run did not include a rooftop or platform barrel");
+          pickups.forEach(pickup => {
+            assert(Math.hypot(pickup.position.x, pickup.position.z) < 90, "Fuel barrel spawned outside the navigation warning boundary");
+            assert(horizontalDistanceSquared(pickup.position, spawn) >= 64, "Fuel barrel spawned inside the initial camera volume");
+            assert(horizontalDistanceSquared(pickup.position, exclusions[0]) >= 3.25 * 3.25, "Fuel barrel overlapped an excluded signal");
+            if (pickup.placementType === "GROUND") {
+              assert(pickup.position.y >= 0.6, "Ground fuel barrel spawned below the flight floor");
+              assert(city.colliders.every(collider =>
+                pickup.position.x < collider.minX ||
+                pickup.position.x > collider.maxX ||
+                pickup.position.z < collider.minZ ||
+                pickup.position.z > collider.maxZ
+              ), "Ground fuel barrel spawned inside solid geometry");
+            } else {
+              const structure = city.structures.find(item => item.id === pickup.hostStructureId);
+              const part = structure && structure.parts.find(item => item.id === pickup.hostPartId);
+              assert(part && part.solid, "Rooftop fuel barrel lacks solid host metadata");
+              assertNear(pickup.position.y, part.bounds.maxY + 0.65, 1e-9, "Rooftop fuel barrel height changed");
+              assert(
+                pickup.position.x > part.bounds.minX && pickup.position.x < part.bounds.maxX &&
+                pickup.position.z > part.bounds.minZ && pickup.position.z < part.bounds.maxZ,
+                "Rooftop fuel barrel left its host surface"
+              );
+            }
+          });
+        }
+      },
+      {
+        name: "fuel depletion is bounded and collection caps refill before deterministic respawn",
+        run() {
+          const city = Noseview.city.generateCity(19810001);
+          const spawn = Noseview.city.getMissionStart(city);
+          const model = Noseview.fuel.createFuelModel({
+            drainPerSecond: 10,
+            maximumDeltaSeconds: 0.25,
+            replacementDelaySeconds: 0.5
+          });
+          model.setEnabled(true, city, 505, [], spawn);
+          model.drainEvents();
+          model.update(100, { x: 0, y: 70, z: 0 });
+          assertNear(model.getSnapshot().current, 97.5, 1e-9, "Restored-tab delta was not bounded");
+          const collected = model.getPickups()[0];
+          model.update(0, collected.position);
+          assert(model.getSnapshot().current === 100, "Fuel refill exceeded or failed to reach maximum fuel");
+          assert(model.getSnapshot().activePickupCount === 2, "Collected barrel was not removed exactly once");
+          const collectionEvents = model.drainEvents().filter(event => event.type === "fuel-collected");
+          assert(collectionEvents.length === 1 && collectionEvents[0].amount === 2.5, "Collection event did not report the capped refill");
+          model.update(0, collected.position);
+          assert(!model.drainEvents().some(event => event.type === "fuel-collected"), "Collected barrel reacted more than once");
+          model.update(0.25, collected.position);
+          model.update(0.25, collected.position);
+          assert(model.getSnapshot().activePickupCount === 3, "Collected barrel was not replaced after the configured delay");
+          const replacement = model.getPickups().find(pickup => pickup.id.endsWith("-3"));
+          assert(replacement && distanceSquared(replacement.position, collected.position) > 2.25 * 2.25, "Replacement spawned inside the current pickup radius");
+        }
+      },
+      {
+        name: "fuel zero, restart, disable, and teardown transitions are clean",
+        run() {
+          const city = Noseview.city.generateCity(19810001);
+          const spawn = Noseview.city.getMissionStart(city);
+          const model = Noseview.fuel.createFuelModel({
+            maximum: 5,
+            drainPerSecond: 5,
+            lowThreshold: 3,
+            criticalThreshold: 1,
+            maximumDeltaSeconds: 2
+          });
+          assert(!model.getSnapshot().enabled, "Fuel Endurance was enabled by default");
+          model.setEnabled(true, city, 606, [], spawn);
+          model.update(0.5, { x: 0, y: 70, z: 0 });
+          assert(model.getSnapshot().warningText === "LOW FUEL", "Low-fuel text state was not exposed");
+          model.update(0.4, { x: 0, y: 70, z: 0 });
+          assert(model.getSnapshot().warningText === "FUEL CRITICAL", "Critical-fuel text state was not exposed");
+          model.update(0.1, { x: 0, y: 70, z: 0 });
+          assert(
+            model.getSnapshot().depleted && !model.getSnapshot().gameOver && model.getSnapshot().current === 0,
+            "Zero fuel did not enter the pre-crash depleted state"
+          );
+          model.confirmGameOver();
+          assert(model.getSnapshot().gameOver, "Fuel crash landing did not confirm Game Over");
+          model.update(1, { x: 0, y: 70, z: 0 });
+          assert(model.drainEvents().filter(event => event.type === "game-over").length === 1, "Fuel Game Over was not emitted exactly once");
+          model.resetRun(city, 607, [], spawn);
+          assert(model.getSnapshot().current === 5 && !model.getSnapshot().gameOver, "Fuel restart did not restore the enabled resource");
+          model.setEnabled(false);
+          assert(!model.getSnapshot().enabled && model.getPickups().length === 0, "Disabling fuel left active pickup state");
+          model.destroy();
+          assert(model.getPickups().length === 0, "Fuel teardown left stale pickups");
+          model.setEnabled(true, city, 608, [], spawn);
+          assert(!model.getSnapshot().enabled && model.getPickups().length === 0, "Destroyed fuel model accepted a new run");
         }
       },
       {
