@@ -2,6 +2,13 @@
 
 Notable changes to the canonical NOSEVIEW 1997 edition are recorded here.
 
+## 1.13.1 — 2026-07-29
+
+### Changed
+
+- Reworked the README wordmark into a more elaborate BBS and demoscene-inspired
+  ASCII banner.
+
 ## 1.13.0 — 2026-07-29
 
 ### Added

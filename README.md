@@ -11,12 +11,17 @@ terminal.
 [Watch the 7-second flight demo captured during Signal Hunt (WebM, 180 KB).](docs/media/v1.13.0-flight-and-signal-hunt.webm)
 
 ```text
- _   _  ___  ____  _____ _   _ ___ _____ _    _
-| \ | |/ _ \/ ___|| ____| | | |_ _| ____| |  | |
-|  \| | | | \___ \|  _| | | | || ||  _| | |  | |
-| |\  | |_| |___) | |___ \ V / | || |___| |__| |
-|_| \_|\___/|____/|_____| \_/ |___|_____|\____/
-             C I T Y   T E R M I N A L   1 9 9 7
+ .----------------------------------------------------------------------------.
+ |                                                                            |
+ |  NN\   NN   /OOOO\   /SSSSS   EEEEEEE  VV     VV  IIIIIII  EEEEEEE  WW  WW |
+ |  NNN\  NN  OO    OO  SS       EE        VV   VV     III    EE       WW  WW |
+ |  NN NN NN  OO    OO  \SSSS\   EEEEEEE    VV VV      III    EEEEEEE  WW  WW |
+ |  NN  \NNN  OO    OO      SS   EE          VVV       III    EE       WWWWWW |
+ |  NN   \NN   \OOOO/   SSSSS/   EEEEEEE      V      IIIIIII  EEEEEEE   WW WW |
+ |                                                                            |
+ +----------------[ C I T Y  N A V I G A T I O N  T E R M I N A L ]-----------+
+ | SYSOP: PILOT // NODE: 1997 // MODEM: 56K // VIDEO: WEBGL // STATUS: ONLINE |
+ `----------------------------------------------------------------------------'
 ```
 
 NOSEVIEW 1997 is a compact retro-futuristic flight game with deterministic
