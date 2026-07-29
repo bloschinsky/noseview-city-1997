@@ -795,8 +795,8 @@
       <button id="hud-button"></button><button id="analog-button"></button>
       <button id="digital-rain-button"></button><button id="starfield-button"></button><button id="speed-button"></button>
       <button id="sound-button"></button><button id="reset-button"></button>
-      <button id="regen-button"></button><button id="mission-start-button"></button>
-      <button id="mission-abort-button"></button>
+      <button id="regen-button"></button><button id="missions-button"></button><canvas id="gl-canvas" tabindex="-1"></canvas>
+      <div id="missions-modal" hidden><button id="missions-close"></button><div id="missions-catalog"></div></div>
       <div id="mission-complete" role="dialog" hidden>
         <button id="mission-replay-button">REPLAY</button>
         <button id="mission-new-city-button">NEW CITY</button>
@@ -821,7 +821,7 @@
       engine,
       hud: { setVisible() {} }
     });
-    const missionStart = fixture.querySelector("#mission-start-button");
+    const missionsButton = fixture.querySelector("#missions-button");
     const dialog = fixture.querySelector("#mission-complete");
     const replay = fixture.querySelector("#mission-replay-button");
     const newCity = fixture.querySelector("#mission-new-city-button");
@@ -840,7 +840,7 @@
       assert(rain.getAttribute("aria-pressed") === "false" && starfield.getAttribute("aria-pressed") === "true", "Starfield did not replace Digital Rain in Settings");
       starfield.click();
       assert(rain.getAttribute("aria-pressed") === "false" && starfield.getAttribute("aria-pressed") === "false", "Active Starfield did not return Settings to NONE");
-      missionStart.focus();
+      missionsButton.focus();
       dialog.hidden = false;
       controls.updateTelemetry({ ...baseSnapshot, mission: { mode: "COMPLETE" } });
       assert(root.document.activeElement === replay, "Completion dialog did not focus its first control");
@@ -854,7 +854,7 @@
       assert(calls.replay === 1, "Completion replay control did not replay the mission");
       dialog.hidden = true;
       controls.updateTelemetry(baseSnapshot);
-      assert(root.document.activeElement === fixture.querySelector("#mission-abort-button"), "Completion dialog did not restore focus to an available mission control");
+      assert(root.document.activeElement === missionsButton, "Completion dialog did not restore focus to Missions");
 
       fixture.querySelector("#settings-button").click();
       assert(!fixture.querySelector("#settings-modal").hidden, "Settings dialog did not open for completion conflict test");
@@ -870,6 +870,85 @@
     }
   }
 
+  async function runMissionsMenuCase() {
+    const fixture = root.document.createElement("div");
+    fixture.innerHTML = `
+      <button id="settings-button"></button>
+      <div id="settings-modal" hidden><button id="settings-close"></button></div>
+      <button id="hud-button"></button><button id="analog-button"></button>
+      <button id="digital-rain-button"></button><button id="starfield-button"></button><button id="speed-button"></button>
+      <button id="sound-button"></button><button id="reset-button"></button><button id="regen-button"></button>
+      <button id="missions-button">MISSIONS</button><canvas id="gl-canvas" tabindex="-1"></canvas>
+      <div id="missions-modal" role="dialog" hidden><button id="missions-close">CLOSE</button><div id="missions-catalog"></div></div>
+      <div id="mission-complete" role="dialog" hidden><button id="mission-replay-button">REPLAY</button><button id="mission-new-city-button">NEW CITY</button></div>
+      <div id="game-over" role="dialog" hidden><button id="game-restart-button">RESTART</button></div>`;
+    root.document.body.appendChild(fixture);
+    const calls = { start: 0, replay: 0, abort: 0 };
+    const engine = {
+      setControl() {}, resetCamera() {}, regenerateCity() {}, restartGame() {},
+      startSignalHunt() { calls.start += 1; },
+      replaySignalHunt() { calls.replay += 1; },
+      abortSignalHunt() { calls.abort += 1; },
+      cycleSpeed() { return { name: "NORMAL" }; },
+      setEffect(_name, enabled) { return enabled; }, setSkyMode(mode) { return mode; },
+      setSoundEnabled(enabled) { return Promise.resolve(enabled); }
+    };
+    const controls = Noseview.ui.createControls({ documentRoot: root.document, windowRoot: root, engine, hud: { setVisible() {} } });
+    const baseSnapshot = {
+      effects: { hud: true, analogVision: false, skyMode: "none" },
+      sound: { available: true, enabled: false }, speed: { name: "NORMAL" },
+      integrity: { enabled: false, gameOver: false }, fuel: { enabled: false, gameOver: false }, survival: { gameOver: false }
+    };
+    const missions = fixture.querySelector("#missions-modal");
+    const missionsButton = fixture.querySelector("#missions-button");
+    const settings = fixture.querySelector("#settings-modal");
+    const canvas = fixture.querySelector("#gl-canvas");
+    try {
+      controls.updateTelemetry({ ...baseSnapshot, mission: { mode: "IDLE", acquiredTargets: 0, totalTargets: 0 } });
+      missionsButton.click();
+      assert(!missions.hidden, "Missions dialog did not open");
+      assert(missions.querySelectorAll(".mission-catalog-entry").length === 1, "Missions dialog did not render the implemented catalog");
+      assert(missions.textContent.includes("SIGNAL HUNT") && missions.textContent.includes("READY // FREE FLIGHT"), "Signal Hunt catalog text was incomplete");
+      assert(missions.querySelector("[data-mission-action='start']").textContent === "START SIGNAL HUNT", "Idle Signal Hunt action was not available");
+      fixture.querySelector("#settings-button").click();
+      assert(missions.hidden && !settings.hidden, "Settings and Missions remained open together");
+      fixture.querySelector("#settings-close").click();
+
+      missionsButton.click();
+      missions.querySelector("[data-mission-action='start']").click();
+      assert(calls.start === 1 && missions.hidden, "Missions start action was not routed and closed");
+      assert(root.document.activeElement === canvas, "Mission start did not return focus to the flight display");
+
+      controls.updateTelemetry({ ...baseSnapshot, mission: { mode: "ACTIVE", acquiredTargets: 1, totalTargets: 4 } });
+      missionsButton.click();
+      const abort = missions.querySelector("[data-mission-action='abort']");
+      assert(missions.textContent.includes("ACTIVE // TARGETS: 1/4") && abort, "Active Signal Hunt state or abort action was not rendered");
+      abort.focus();
+      abort.dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", bubbles: true }));
+      assert(root.document.activeElement === fixture.querySelector("#missions-close"), "Missions dialog did not trap forward focus");
+      fixture.querySelector("#missions-close").dispatchEvent(new KeyboardEvent("keydown", { key: "Tab", shiftKey: true, bubbles: true }));
+      assert(root.document.activeElement === abort, "Missions dialog did not trap backward focus");
+      abort.click();
+      assert(calls.abort === 1 && missions.hidden, "Missions abort action was not routed and closed");
+
+      controls.updateTelemetry({ ...baseSnapshot, mission: { mode: "ABORTED", acquiredTargets: 1, totalTargets: 4 } });
+      missionsButton.click();
+      missions.querySelector("[data-mission-action='replay']").click();
+      assert(calls.replay === 1 && missions.hidden, "Missions replay action was not routed and closed");
+
+      missionsButton.click();
+      missions.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      assert(missions.hidden && root.document.activeElement === missionsButton, "Missions Escape did not close and restore focus");
+
+      missionsButton.click();
+      controls.updateTelemetry({ ...baseSnapshot, mission: { mode: "COMPLETE" }, survival: { gameOver: true, reasonText: "HULL FAILURE" } });
+      assert(missions.hidden && fixture.querySelector("#mission-complete").hidden && !fixture.querySelector("#game-over").hidden, "Missions, completion, and Game Over created competing dialogs");
+    } finally {
+      controls.destroy();
+      fixture.remove();
+    }
+  }
+
   async function runHullGameOverFocusCase() {
     const fixture = root.document.createElement("div");
     fixture.innerHTML = `
@@ -878,8 +957,8 @@
       <button id="hud-button"></button><button id="analog-button"></button>
       <button id="digital-rain-button"></button><button id="starfield-button"></button><button id="speed-button"></button>
       <button id="sound-button"></button><button id="reset-button"></button>
-      <button id="regen-button"></button><button id="mission-start-button"></button>
-      <button id="mission-abort-button"></button>
+      <button id="regen-button"></button><button id="missions-button"></button><canvas id="gl-canvas" tabindex="-1"></canvas>
+      <div id="missions-modal" hidden><button id="missions-close"></button><div id="missions-catalog"></div></div>
       <div id="mission-complete" role="dialog" hidden>
         <button id="mission-replay-button">REPLAY</button>
         <button id="mission-new-city-button">NEW CITY</button>
@@ -961,6 +1040,7 @@
     await runCase({ name: "Hull and Fuel share one deterministic combined Game Over", run: runCombinedSurvivalEngineCase });
     await runCase({ name: "navigation audio stays lazy and schedules procedural cues", run: runNavigationAudioCase });
     await runCase({ name: "navigation warnings remain accessible with reduced motion", run: runNavigationUiCase });
+    await runCase({ name: "Missions menu renders and routes Signal Hunt actions", run: runMissionsMenuCase });
     await runCase({ name: "mission completion dialog traps and restores focus", run: runMissionCompletionFocusCase });
     await runCase({ name: "Hull Game Over dialog traps and restores focus", run: runHullGameOverFocusCase });
     await runCase({ name: "mission events reach audio", run: runMissionAudioCase });

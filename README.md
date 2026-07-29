@@ -27,9 +27,10 @@ A retro-futuristic navigation terminal for exploring a procedurally generated 3D
 - Procedural retro attention, countdown, and automatic-return audio cues
 - Responsive keyboard and on-screen controls
 
-### Signal Hunt (completed in 1.8.0)
+### Missions and Signal Hunt (completed in 1.11.3)
 
-- Start a timed Signal Hunt from the right panel with `START SIGNAL HUNT`.
+- Open `MISSIONS` in the right panel to view the implemented mission directory. Free Flight remains the default and never requires choosing a mission.
+- Start Signal Hunt from its catalog entry. While it is active, reopen `MISSIONS` to abort; after completion, failure, or abort, reopen it to replay. Starting, replaying, or aborting returns focus to the flight display.
 - Each city/mission seed deterministically selects three to five reachable rooftop signals outside the helipad spawn area.
 - Aim the center crosshair at the active rooftop transmitter and hold it there for two continuous seconds; its cyan wireframe box, antenna, and four horizontal signal waves emitted from the antenna crossbar show acquisition progress alongside the corner lock frame and text feedback.
 - Acquired signals remain marked while a hunt is active. Beacon animation becomes static when reduced motion is requested.

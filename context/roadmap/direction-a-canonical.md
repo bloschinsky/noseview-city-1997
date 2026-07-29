@@ -662,20 +662,22 @@ These values are named configuration defaults and must be tuned through playtest
 
 Goal: give implemented game modes a dedicated, accessible launch surface without changing Free Flight as the default or introducing gameplay for unimplemented modes.
 
+Status: completed in `1.11.4`.
+
 Depends on: the existing Signal Hunt actions and the collision, Hull Integrity, Fuel Endurance, and run-reset semantics established in Milestones 6–8.
 
 ### 9.1 Move game-mode launch controls into a Missions menu
 
-- [ ] Replace the direct `START SIGNAL HUNT` control in the main panel with a `MISSIONS` button.
-- [ ] Add a retro-styled Missions dialog that initially lists Signal Hunt and can accept additional mode descriptors later without duplicating dialog wiring.
-- [ ] Move Signal Hunt start, replay, and abort actions into the Missions dialog.
-- [ ] Show each mode's name, short objective, current state, and available primary action as readable text.
-- [ ] Keep the compact active-mission telemetry visible outside the dialog while a mission is running.
-- [ ] Close the dialog after a successful mission start or replay and return focus to the appropriate flight control or canvas.
-- [ ] Ensure Missions and Settings cannot be open at the same time.
-- [ ] Support keyboard, pointer, and touch operation; close on `Escape` or backdrop click when safe; trap focus and restore it to `MISSIONS`.
-- [ ] Keep additional mission types beyond Signal Hunt out of this milestone; add real catalog entries only when their gameplay exists.
-- [ ] Cover catalog rendering, action routing, dialog focus behavior, and active-mode button states with browser tests.
+- [x] Replace the direct `START SIGNAL HUNT` control in the main panel with a `MISSIONS` button.
+- [x] Add a retro-styled Missions dialog that initially lists Signal Hunt and can accept additional mode descriptors later without duplicating dialog wiring.
+- [x] Move Signal Hunt start, replay, and abort actions into the Missions dialog.
+- [x] Show each mode's name, short objective, current state, and available primary action as readable text.
+- [x] Keep the compact active-mission telemetry visible outside the dialog while a mission is running.
+- [x] Close the dialog after a successful mission start or replay and return focus to the appropriate flight control or canvas.
+- [x] Ensure Missions and Settings cannot be open at the same time.
+- [x] Support keyboard, pointer, and touch operation; close on `Escape` or backdrop click when safe; trap focus and restore it to `MISSIONS`.
+- [x] Keep additional mission types beyond Signal Hunt out of this milestone; add real catalog entries only when their gameplay exists.
+- [x] Cover catalog rendering, action routing, dialog focus behavior, and active-mode button states with browser tests.
 
 Suggested mode descriptor boundary:
 
@@ -693,12 +695,12 @@ This is a small UI catalog, not a general-purpose plugin or game-mode framework.
 
 ### 9.2 Integration, documentation, and delivery
 
-- [ ] Document the Missions menu and Signal Hunt start, replay, and abort flow in `README.md`.
-- [ ] Manually verify the Missions dialog in idle, active, and complete Signal Hunt states.
-- [ ] Verify desktop and narrow layouts, keyboard focus trapping and restoration, pointer controls, and touch controls.
-- [ ] Verify that Settings, the Signal Hunt completion dialog, Game Over, and Missions cannot create competing focus traps.
-- [ ] Verify that starting, replaying, and aborting Signal Hunt through the dialog preserves the established Hull Integrity and Fuel Endurance run-reset policies.
-- [ ] Apply the required visible `REV` patch bump when the feature is implemented.
+- [x] Document the Missions menu and Signal Hunt start, replay, and abort flow in `README.md`.
+- [x] Manually verify the Missions dialog in idle, active, and complete Signal Hunt states.
+- [x] Verify desktop and narrow layouts, keyboard focus trapping and restoration, pointer controls, and touch controls.
+- [x] Verify that Settings, the Signal Hunt completion dialog, Game Over, and Missions cannot create competing focus traps.
+- [x] Verify that starting, replaying, and aborting Signal Hunt through the dialog preserves the established Hull Integrity and Fuel Endurance run-reset policies.
+- [x] Apply the required visible `REV` patch bump when the feature is implemented.
 
 ### Acceptance criteria
 

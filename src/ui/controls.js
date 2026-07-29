@@ -33,8 +33,11 @@
     const fuelEnduranceButton = documentRoot.getElementById("fuel-endurance-button");
     const resetButton = documentRoot.getElementById("reset-button");
     const regenerateButton = documentRoot.getElementById("regen-button");
-    const missionStartButton = documentRoot.getElementById("mission-start-button");
-    const missionAbortButton = documentRoot.getElementById("mission-abort-button");
+    const canvas = documentRoot.getElementById("gl-canvas");
+    const missionsButton = documentRoot.getElementById("missions-button");
+    const missionsModal = documentRoot.getElementById("missions-modal");
+    const missionsClose = documentRoot.getElementById("missions-close");
+    const missionsCatalog = documentRoot.getElementById("missions-catalog");
     const missionComplete = documentRoot.getElementById("mission-complete");
     const missionReplayButton = documentRoot.getElementById("mission-replay-button");
     const missionNewCityButton = documentRoot.getElementById("mission-new-city-button");
@@ -47,6 +50,7 @@
     Noseview.flight.CONTROL_NAMES.forEach(name => { activeControls[name] = false; });
     let destroyed = false;
     let previousSettingsFocus = null;
+    let missionsOpen = false;
     let previousCompletionFocus = null;
     let completionOpen = false;
     let previousGameOverFocus = null;
@@ -59,6 +63,31 @@
     let soundPending = false;
     let hullIntegrityEnabled = false;
     let fuelEnduranceEnabled = false;
+    let latestMissionSnapshot = { mode: "IDLE", acquiredTargets: 0, totalTargets: 0 };
+
+    // This intentionally small catalog keeps DOM wiring separate from future mission rules.
+    const missionCatalog = [{
+      id: "signal-hunt",
+      label: "SIGNAL HUNT",
+      description: "Locate and scan all signals before time expires.",
+      getState(mission) {
+        const mode = mission.mode || "IDLE";
+        if (mode === "ACTIVE") return `ACTIVE // TARGETS: ${mission.acquiredTargets || 0}/${mission.totalTargets || 0}`;
+        if (mode === "COMPLETE") return "COMPLETE // READY TO REPLAY";
+        if (mode === "FAILED") return "FAILED // READY TO REPLAY";
+        if (mode === "ABORTED") return "ABORTED // READY TO REPLAY";
+        return "READY // FREE FLIGHT";
+      },
+      getActions(mission) {
+        if ((mission.mode || "IDLE") === "ACTIVE") {
+          return [{ id: "abort", label: "ABORT MISSION", run() { engine.abortSignalHunt(); } }];
+        }
+        if ((mission.mode || "IDLE") === "IDLE") {
+          return [{ id: "start", label: "START SIGNAL HUNT", run() { engine.startSignalHunt(); } }];
+        }
+        return [{ id: "replay", label: "REPLAY MISSION", run() { engine.replaySignalHunt(); } }];
+      }
+    }];
 
     function listen(target, type, handler, listenerOptions) {
       target.addEventListener(type, handler, listenerOptions);
@@ -114,17 +143,63 @@
       syncSkyMode(skyMode);
     }
 
+    function renderMissionCatalog() {
+      if (!missionsCatalog) return;
+      missionsCatalog.textContent = "";
+      missionCatalog.forEach(descriptor => {
+        const entry = documentRoot.createElement("section");
+        entry.className = "mission-catalog-entry";
+        entry.dataset.missionId = descriptor.id;
+        const title = documentRoot.createElement("h2");
+        title.textContent = descriptor.label;
+        const description = documentRoot.createElement("p");
+        description.textContent = descriptor.description;
+        const state = documentRoot.createElement("p");
+        state.className = "mission-catalog-state";
+        state.dataset.missionState = descriptor.id;
+        const actions = documentRoot.createElement("div");
+        actions.className = "mission-catalog-actions";
+        actions.dataset.missionActions = descriptor.id;
+        entry.append(title, description, state, actions);
+        missionsCatalog.appendChild(entry);
+      });
+      updateMissionCatalog(latestMissionSnapshot);
+    }
+
+    function updateMissionCatalog(mission) {
+      if (!missionsCatalog) return;
+      missionCatalog.forEach(descriptor => {
+        const state = missionsCatalog.querySelector(`[data-mission-state="${descriptor.id}"]`);
+        const actions = missionsCatalog.querySelector(`[data-mission-actions="${descriptor.id}"]`);
+        if (state) state.textContent = `STATUS: ${descriptor.getState(mission)}`;
+        if (!actions) return;
+        const nextActions = descriptor.getActions(mission);
+        const actionSignature = nextActions.map(action => `${action.id}:${action.label}`).join("|");
+        if (!nextActions.length) {
+          actions.textContent = "";
+          actions.dataset.missionActionSignature = "";
+        } else if (actions.dataset.missionActionSignature === actionSignature) {
+          Array.from(actions.querySelectorAll("button")).forEach(button => { button.disabled = false; });
+        } else {
+          actions.textContent = "";
+          actions.dataset.missionActionSignature = actionSignature;
+          nextActions.forEach(nextAction => {
+            const button = documentRoot.createElement("button");
+            button.type = "button";
+            button.dataset.missionId = descriptor.id;
+            button.dataset.missionAction = nextAction.id;
+            button.textContent = nextAction.label;
+            actions.appendChild(button);
+          });
+        }
+      });
+    }
+
     function updateMissionButtons(snapshot, blockedByGameOver) {
       const mission = snapshot.mission || { mode: "IDLE" };
-      const mode = mission.mode || "IDLE";
-      const active = mode === "ACTIVE";
-      const ended = mode === "COMPLETE" || mode === "FAILED" || mode === "ABORTED";
-      if (missionStartButton) {
-        missionStartButton.disabled = active;
-        missionStartButton.textContent = ended ? "REPLAY MISSION" : "START SIGNAL HUNT";
-      }
-      if (missionAbortButton) missionAbortButton.disabled = !active;
-      syncCompletionDialog(mode === "COMPLETE" && !blockedByGameOver);
+      latestMissionSnapshot = mission;
+      updateMissionCatalog(mission);
+      syncCompletionDialog((mission.mode || "IDLE") === "COMPLETE" && !blockedByGameOver);
     }
 
     function getCompletionFocusables() {
@@ -143,12 +218,11 @@
       if (!missionComplete || shouldOpen === completionOpen) return;
       completionOpen = shouldOpen;
       if (completionOpen) {
-        const settingsWasOpen = !settingsModal.hidden;
-        previousCompletionFocus = settingsWasOpen ? settingsButton : documentRoot.activeElement;
-        if (settingsWasOpen) {
-          settingsModal.hidden = true;
-          previousSettingsFocus = null;
-        }
+        const settingsWasOpen = settingsModal && !settingsModal.hidden;
+        const missionsWasOpen = missionsOpen;
+        previousCompletionFocus = settingsWasOpen ? settingsButton : (missionsWasOpen ? missionsButton : documentRoot.activeElement);
+        if (settingsWasOpen) dismissSettings();
+        if (missionsWasOpen) dismissMissions();
         clearInputs();
         const focusables = getCompletionFocusables();
         if (focusables[0]) focusables[0].focus();
@@ -158,7 +232,7 @@
           previousCompletionFocus !== documentRoot.body;
         const focusTarget = previousFocusAvailable
           ? previousCompletionFocus
-          : (missionStartButton && !missionStartButton.disabled ? missionStartButton : missionAbortButton);
+          : (missionsButton || canvas || settingsButton);
         previousCompletionFocus = null;
         if (focusTarget) focusTarget.focus();
       }
@@ -169,16 +243,24 @@
       return Array.from(gameOverDialog.querySelectorAll("button:not(:disabled)"));
     }
 
+    function dismissCompletion() {
+      if (!missionComplete || !completionOpen) return;
+      missionComplete.hidden = true;
+      completionOpen = false;
+      previousCompletionFocus = null;
+    }
+
     function syncGameOverDialog(shouldOpen) {
       if (!gameOverDialog || shouldOpen === gameOverOpen) return;
       gameOverOpen = shouldOpen;
       gameOverDialog.hidden = !shouldOpen;
       if (shouldOpen) {
-        previousGameOverFocus = !settingsModal.hidden ? settingsButton : documentRoot.activeElement;
-        if (!settingsModal.hidden) {
-          settingsModal.hidden = true;
-          previousSettingsFocus = null;
-        }
+        const settingsWasOpen = settingsModal && !settingsModal.hidden;
+        const missionsWasOpen = missionsOpen;
+        previousGameOverFocus = settingsWasOpen ? settingsButton : (missionsWasOpen ? missionsButton : documentRoot.activeElement);
+        if (settingsWasOpen) dismissSettings();
+        if (missionsWasOpen) dismissMissions();
+        if (completionOpen) dismissCompletion();
         clearInputs();
         const focusables = getGameOverFocusables();
         if (focusables[0]) focusables[0].focus();
@@ -186,7 +268,7 @@
         const previousFocusAvailable = isFocusAvailable(previousGameOverFocus) &&
           !gameOverDialog.contains(previousGameOverFocus) &&
           previousGameOverFocus !== documentRoot.body;
-        const focusTarget = previousFocusAvailable ? previousGameOverFocus : settingsButton;
+        const focusTarget = previousFocusAvailable ? previousGameOverFocus : (missionsButton || settingsButton);
         previousGameOverFocus = null;
         if (focusTarget) focusTarget.focus();
       }
@@ -239,7 +321,7 @@
     });
 
     function handleKeyDown(event) {
-      if (!settingsModal.hidden || completionOpen || gameOverOpen) return;
+      if (!settingsModal.hidden || missionsOpen || completionOpen || gameOverOpen) return;
       if (keyMap[event.code]) {
         event.preventDefault();
         heldKeys.add(event.code);
@@ -273,10 +355,18 @@
 
     function openSettings() {
       if (completionOpen || gameOverOpen) return;
-      previousSettingsFocus = documentRoot.activeElement;
+      const missionsWasOpen = missionsOpen;
+      if (missionsWasOpen) dismissMissions();
+      previousSettingsFocus = missionsWasOpen ? settingsButton : documentRoot.activeElement;
       clearInputs();
       settingsModal.hidden = false;
       settingsClose.focus();
+    }
+
+    function dismissSettings() {
+      if (!settingsModal || settingsModal.hidden) return;
+      settingsModal.hidden = true;
+      previousSettingsFocus = null;
     }
 
     function closeSettings() {
@@ -286,6 +376,74 @@
         ? previousSettingsFocus
         : settingsButton;
       focusTarget.focus();
+    }
+
+    function getMissionsFocusables() {
+      if (!missionsModal) return [];
+      return Array.from(missionsModal.querySelectorAll("button:not(:disabled)"));
+    }
+
+    function dismissMissions() {
+      if (!missionsModal || !missionsOpen) return;
+      missionsModal.hidden = true;
+      missionsOpen = false;
+    }
+
+    function closeMissions(focusTarget) {
+      if (!missionsModal || !missionsOpen) return;
+      missionsModal.hidden = true;
+      missionsOpen = false;
+      const target = focusTarget || missionsButton;
+      if (target && typeof target.focus === "function") target.focus();
+    }
+
+    function openMissions() {
+      if (!missionsModal || completionOpen || gameOverOpen) return;
+      const settingsWasOpen = settingsModal && !settingsModal.hidden;
+      if (settingsWasOpen) dismissSettings();
+      clearInputs();
+      renderMissionCatalog();
+      missionsModal.hidden = false;
+      missionsOpen = true;
+      if (missionsClose) missionsClose.focus();
+    }
+
+    function handleMissionsClick(event) {
+      if (event.target === missionsModal) {
+        closeMissions();
+        return;
+      }
+      const actionButton = event.target.closest("[data-mission-action]");
+      if (!actionButton || !missionsModal.contains(actionButton)) return;
+      const descriptor = missionCatalog.find(item => item.id === actionButton.dataset.missionId);
+      const action = descriptor && descriptor.getActions(latestMissionSnapshot)
+        .find(item => item.id === actionButton.dataset.missionAction);
+      if (!action || typeof action.run !== "function") return;
+      clearInputs();
+      action.run();
+      closeMissions(canvas || missionsButton);
+    }
+
+    function handleMissionsKeyDown(event) {
+      if (!missionsOpen) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        closeMissions();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const focusables = getMissionsFocusables();
+      const first = focusables[0];
+      const last = focusables[focusables.length - 1];
+      if (!first || !last) return;
+      if (event.shiftKey && documentRoot.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && documentRoot.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     }
 
     function handleSettingsClick(event) {
@@ -346,6 +504,12 @@
     listen(settingsClose, "click", closeSettings);
     listen(settingsModal, "click", handleSettingsClick);
     listen(settingsModal, "keydown", handleSettingsKeyDown);
+    if (missionsButton) listen(missionsButton, "click", openMissions);
+    if (missionsClose) listen(missionsClose, "click", () => closeMissions());
+    if (missionsModal) {
+      listen(missionsModal, "click", handleMissionsClick);
+      listen(missionsModal, "keydown", handleMissionsKeyDown);
+    }
     if (missionComplete) listen(missionComplete, "keydown", handleCompletionKeyDown);
     if (gameOverDialog) listen(gameOverDialog, "keydown", handleGameOverKeyDown);
     listen(resetButton, "click", () => {
@@ -355,14 +519,6 @@
     listen(regenerateButton, "click", () => {
       clearInputs();
       engine.regenerateCity();
-    });
-    if (missionStartButton) listen(missionStartButton, "click", () => {
-      clearInputs();
-      engine.startSignalHunt();
-    });
-    if (missionAbortButton) listen(missionAbortButton, "click", () => {
-      clearInputs();
-      engine.abortSignalHunt();
     });
     if (missionReplayButton) listen(missionReplayButton, "click", () => {
       clearInputs();
@@ -418,10 +574,12 @@
       suppressedKeys.clear();
       destroyed = true;
       settingsModal.hidden = true;
+      if (missionsModal) missionsModal.hidden = true;
       if (missionComplete) missionComplete.hidden = true;
       if (gameOverDialog) gameOverDialog.hidden = true;
       completionOpen = false;
       gameOverOpen = false;
+      missionsOpen = false;
       previousCompletionFocus = null;
       previousGameOverFocus = null;
       cleanups.splice(0).reverse().forEach(cleanup => cleanup());
