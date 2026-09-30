@@ -136,7 +136,7 @@ This document tracks confirmed bugs, their root causes, and the planned fixes.
 
 ---
 
-## BUG-005 — Signal Hunt gives no feedback when an aimed beacon is beyond acquisition range `[P1]` — Planned
+## BUG-005 — Signal Hunt gives no feedback when an aimed beacon is beyond acquisition range `[P1]` — Fixed in 1.13.3
 
 **Symptom:** During an active Signal Hunt mission, the player can center the crosshair on the active radio beacon while remaining farther away than the maximum acquisition distance. The lock does not start, but the HUD does not explain that the beacon is out of range, so valid aim can appear to be ignored.
 
@@ -152,17 +152,17 @@ This document tracks confirmed bugs, their root causes, and the planned fixes.
 
 **Fix plan:**
 
-- [ ] Extend Signal Hunt scan telemetry with separate aim and range results, for example `aimed` plus a `rangeState` value such as `IN_RANGE`, `TOO_FAR`, or `TOO_CLOSE`; keep `scan.inCone` as the combined acquisition-valid result for backward compatibility.
-- [ ] Expose the applicable acquisition limit through model telemetry or a derived display value so the UI does not duplicate the engine's `scanMaxDistance` configuration.
-- [ ] While the mission is active and the crosshair is inside the acquisition cone, show a concise message such as `SIGNAL OUT OF RANGE // DIST 42.3 // MAX 40.0` whenever the active unscanned beacon is farther than the configured maximum distance.
-- [ ] Use a dedicated polite status message for range guidance so continuous out-of-range state cannot overwrite or repeatedly announce the assertive `SIGNAL ACQUIRED` feedback.
-- [ ] Hide the range message immediately when the aim leaves the acquisition cone, the beacon enters valid acquisition range, the target is acquired, or the mission is aborted, failed, completed, replayed, or reset.
-- [ ] Keep lock progress at zero while the target is too far away and require a fresh uninterrupted lock after the player enters valid range; do not change the current acquisition cone, minimum distance, maximum distance, two-second hold duration, or signal-intensity tuning.
-- [ ] Place the message in the canvas mission-status layer so it remains readable when the optional decorative HUD is disabled, and provide the same information as semantic text rather than color alone.
-- [ ] Match the existing CRT presentation with a non-flashing high-contrast style and verify readability in the default view, Analog Vision, Digital Rain, reduced-motion mode, and narrow layouts.
-- [ ] Add deterministic model tests for aimed targets just beyond and exactly at the maximum range, an out-of-range target outside the aim cone, re-entry into valid range, custom `scanMaxDistance`, and all mission cleanup transitions.
-- [ ] Add browser/HUD tests proving that the range message appears only for the aimed out-of-range state, does not conflict with acquisition feedback, and is cleared without stale text.
-- [ ] Apply the required patch-version bump to the visible `CITY NAVIGATION TERMINAL // REV. X.Y.Z` label when the fix is implemented.
+- [x] Extend Signal Hunt scan telemetry with separate aim and range results, for example `aimed` plus a `rangeState` value such as `IN_RANGE`, `TOO_FAR`, or `TOO_CLOSE`; keep `scan.inCone` as the combined acquisition-valid result for backward compatibility.
+- [x] Expose the applicable acquisition limit through model telemetry or a derived display value so the UI does not duplicate the engine's `scanMaxDistance` configuration.
+- [x] While the mission is active and the crosshair is inside the acquisition cone, show a concise message such as `SIGNAL OUT OF RANGE // DIST 42.3 // MAX 40.0` whenever the active unscanned beacon is farther than the configured maximum distance.
+- [x] Use a dedicated polite status message for range guidance so continuous out-of-range state cannot overwrite or repeatedly announce the assertive `SIGNAL ACQUIRED` feedback.
+- [x] Hide the range message immediately when the aim leaves the acquisition cone, the beacon enters valid acquisition range, the target is acquired, or the mission is aborted, failed, completed, replayed, or reset.
+- [x] Keep lock progress at zero while the target is too far away and require a fresh uninterrupted lock after the player enters valid range; do not change the current acquisition cone, minimum distance, maximum distance, two-second hold duration, or signal-intensity tuning.
+- [x] Place the message in the canvas mission-status layer so it remains readable when the optional decorative HUD is disabled, and provide the same information as semantic text rather than color alone.
+- [x] Match the existing CRT presentation with a non-flashing high-contrast style and verify readability in the default view, Analog Vision, Digital Rain, reduced-motion mode, and narrow layouts.
+- [x] Add deterministic model tests for aimed targets just beyond and exactly at the maximum range, an out-of-range target outside the aim cone, re-entry into valid range, custom `scanMaxDistance`, and all mission cleanup transitions.
+- [x] Add browser/HUD tests proving that the range message appears only for the aimed out-of-range state, does not conflict with acquisition feedback, and is cleared without stale text.
+- [x] Apply the required patch-version bump to the visible `CITY NAVIGATION TERMINAL // REV. X.Y.Z` label when the fix is implemented.
 
 **Acceptance criteria:**
 
@@ -172,6 +172,10 @@ This document tracks confirmed bugs, their root causes, and the planned fixes.
 - Acquisition progress and timing remain unchanged: an out-of-range target cannot advance the lock, and entering valid range starts a fresh two-second lock.
 - The message remains readable and accessible with affected visual settings and does not suppress `SIGNAL ACQUIRED` or navigation warnings.
 
+
+**Fix history:**
+
+- `1.13.3` — Signal Hunt scan telemetry now reports `aimed`, `rangeState` (`IN_RANGE` / `TOO_FAR` / `TOO_CLOSE`), and the model's `minDistance` / `maxDistance`, while `scan.inCone` remains the combined acquisition-valid result. A dedicated polite `#mission-range` status in the canvas layer shows `SIGNAL OUT OF RANGE // DIST x // MAX y` only while the active beacon is aimed and too far; it is formatted from model telemetry by `Noseview.ui.formatSignalRangeWarning`, hidden on Game Over, and cleared by every mission transition. Acquisition cone, distances, lock duration, and intensity tuning are unchanged.
 ---
 
 ## Checklist summary
@@ -182,4 +186,4 @@ This document tracks confirmed bugs, their root causes, and the planned fixes.
 | BUG-002 | Navigation Limit bypassed by steep vertical flight | P1 | Fixed in 1.5.3 |
 | BUG-003 | Signal Hunt beacon acquisition range is too large | P1 | Fixed in 1.8.1 |
 | BUG-004 | Signal Hunt beacon lacks a visible transmitter body | P2 | Fixed in 1.8.3 |
-| BUG-005 | Signal Hunt gives no out-of-range feedback for an aimed beacon | P1 | Planned |
+| BUG-005 | Signal Hunt gives no out-of-range feedback for an aimed beacon | P1 | Fixed in 1.13.3 |

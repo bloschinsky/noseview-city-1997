@@ -168,7 +168,16 @@
     const events = [];
 
     function emptyScan() {
-      return { inCone: false, distance: null, intensity: 0, alignment: 0 };
+      return {
+        inCone: false,
+        aimed: false,
+        rangeState: null, // null | IN_RANGE | TOO_FAR | TOO_CLOSE
+        distance: null,
+        minDistance: SCAN_MIN_DISTANCE,
+        maxDistance: SCAN_MAX_DISTANCE,
+        intensity: 0,
+        alignment: 0
+      };
     }
 
     function emptyGuidance() {
@@ -372,12 +381,19 @@
         const cosAngle = clamp(dot(fwd, { x: toTargetDir.x, y: toTargetDir.y, z: toTargetDir.z }), -1, 1);
         const angle = deg(Math.acos(cosAngle));
         const inAngle = angle <= SCAN_CONE_DEGREES;
-        const inDistance = toTargetDir.distance >= SCAN_MIN_DISTANCE && toTargetDir.distance <= SCAN_MAX_DISTANCE;
+        const rangeState = toTargetDir.distance > SCAN_MAX_DISTANCE
+          ? "TOO_FAR"
+          : (toTargetDir.distance < SCAN_MIN_DISTANCE ? "TOO_CLOSE" : "IN_RANGE");
+        const inDistance = rangeState === "IN_RANGE";
         const alignment = clamp((SCAN_CONE_DEGREES - angle) / SCAN_CONE_DEGREES, 0, 1);
         const distanceFactor = clamp(1 - (toTargetDir.distance - SCAN_MIN_DISTANCE) / Math.max(1, SCAN_MAX_DISTANCE - SCAN_MIN_DISTANCE), 0, 1);
         lastScan = {
           inCone: Boolean(inAngle && inDistance),
+          aimed: inAngle,
+          rangeState,
           distance: toTargetDir.distance,
+          minDistance: SCAN_MIN_DISTANCE,
+          maxDistance: SCAN_MAX_DISTANCE,
           intensity: Math.sqrt(alignment * distanceFactor),
           alignment
         };

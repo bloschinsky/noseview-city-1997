@@ -883,6 +883,111 @@
         }
       },
       {
+        name: "signal hunt separates aim from acquisition range",
+        run() {
+          const city = Noseview.city.generateCity(19810001);
+          const model = Noseview.signalHunt.createSignalHuntModel({ targetCount: 1 });
+          model.start(city, 777);
+          const target = model.getActiveTarget();
+          const cameraAtDistance = (distance, yawOffsetDegrees) => ({
+            x: target.x + distance,
+            y: target.y,
+            z: target.z,
+            yaw: Math.atan2(-distance, 0) + (yawOffsetDegrees || 0) * Math.PI / 180,
+            pitch: 0
+          });
+
+          let scan = model.getSnapshot().scan;
+          assert(!scan.aimed && scan.rangeState === null, "Idle scan exposed stale aim or range state");
+          assert(scan.minDistance === 2.5 && scan.maxDistance === 40, "Scan telemetry did not expose default acquisition limits");
+
+          model.update(cameraAtDistance(40.1), 0.25);
+          let snapshot = model.getSnapshot();
+          scan = snapshot.scan;
+          assert(scan.aimed, "Centered beacon beyond range was not reported as aimed");
+          assert(scan.rangeState === "TOO_FAR", "Beacon beyond range was not reported as too far");
+          assert(!scan.inCone && snapshot.lock.progress === 0 && !snapshot.lock.active, "Out-of-range aim advanced the lock");
+          assert(Noseview.ui.formatSignalRangeWarning(snapshot) === "SIGNAL OUT OF RANGE // DIST 40.1 // MAX 40.0", "Range warning text changed");
+          for (let index = 0; index < 12; index += 1) model.update(cameraAtDistance(40.1), 0.25);
+          assert(model.getSnapshot().lock.progress === 0 && model.getSnapshot().acquiredTargets === 0, "Sustained out-of-range aim accumulated lock progress");
+
+          model.update(cameraAtDistance(40), 0.25);
+          snapshot = model.getSnapshot();
+          assert(snapshot.scan.aimed && snapshot.scan.rangeState === "IN_RANGE" && snapshot.scan.inCone, "Exact maximum range was not valid");
+          assert(Noseview.ui.formatSignalRangeWarning(snapshot) === "", "Range warning remained at the inclusive maximum");
+          assertNear(snapshot.lock.progress, 0.125, 0.000001, "Entering valid range did not start a fresh lock");
+
+          model.update(cameraAtDistance(60, 30), 0.25);
+          snapshot = model.getSnapshot();
+          assert(!snapshot.scan.aimed && snapshot.scan.rangeState === "TOO_FAR", "Off-crosshair beacon range state changed");
+          assert(Noseview.ui.formatSignalRangeWarning(snapshot) === "", "Off-crosshair beacon showed a range warning");
+          assert(snapshot.lock.progress === 0, "Leaving aim did not clear lock progress");
+
+          model.update(cameraAtDistance(1), 0.25);
+          snapshot = model.getSnapshot();
+          assert(snapshot.scan.aimed && snapshot.scan.rangeState === "TOO_CLOSE" && !snapshot.scan.inCone, "Too-close beacon state changed");
+          assert(Noseview.ui.formatSignalRangeWarning(snapshot) === "", "Too-close beacon showed the out-of-range warning");
+
+          const custom = Noseview.signalHunt.createSignalHuntModel({ targetCount: 1, scanMaxDistance: 25 });
+          custom.start(city, 777);
+          const customTarget = custom.getActiveTarget();
+          custom.update({ x: customTarget.x + 30, y: customTarget.y, z: customTarget.z, yaw: Math.atan2(-30, 0), pitch: 0 }, 0.25);
+          snapshot = custom.getSnapshot();
+          assert(snapshot.scan.maxDistance === 25 && snapshot.scan.rangeState === "TOO_FAR", "Custom maximum range was not exposed");
+          assert(Noseview.ui.formatSignalRangeWarning(snapshot) === "SIGNAL OUT OF RANGE // DIST 30.0 // MAX 25.0", "Custom range warning did not use model telemetry");
+        }
+      },
+      {
+        name: "signal hunt range state clears on every mission transition",
+        run() {
+          const city = Noseview.city.generateCity(19810001);
+          const model = Noseview.signalHunt.createSignalHuntModel({ targetCount: 2, timerSeconds: 5 });
+          const aimTooFar = () => {
+            const target = model.getActiveTarget();
+            model.update({ x: target.x + 50, y: target.y, z: target.z, yaw: Math.atan2(-50, 0), pitch: 0 }, 0.1);
+            assert(Noseview.ui.formatSignalRangeWarning(model.getSnapshot()) !== "", "Setup did not produce a range warning");
+          };
+          const assertCleared = label => {
+            const snapshot = model.getSnapshot();
+            assert(!snapshot.scan.aimed && snapshot.scan.rangeState === null, `${label} left stale range telemetry`);
+            assert(Noseview.ui.formatSignalRangeWarning(snapshot) === "", `${label} left a range warning`);
+          };
+
+          model.start(city, 777);
+          aimTooFar();
+          model.restartAttempt();
+          assertCleared("Restart");
+          aimTooFar();
+          model.abort();
+          assertCleared("Abort");
+          model.replay();
+          assertCleared("Replay");
+          aimTooFar();
+          model.reset();
+          assertCleared("Reset");
+
+          model.start(city, 777);
+          aimTooFar();
+          for (let index = 0; index < 60; index += 1) model.update(null, 0.25);
+          assert(model.getSnapshot().mode === "FAILED", "Timer did not fail the mission");
+          assertCleared("Failure");
+
+          model.start(city, 777);
+          aimTooFar();
+          const first = model.getActiveTarget();
+          const valid = { x: first.x + 10, y: first.y, z: first.z, yaw: Math.atan2(-10, 0), pitch: 0 };
+          for (let index = 0; index < 8; index += 1) model.update(valid, 0.25);
+          let snapshot = model.getSnapshot();
+          assert(snapshot.acquiredTargets === 1 && snapshot.feedback === "SIGNAL ACQUIRED", "Target was not acquired after entering range");
+          assertCleared("Acquisition");
+          const second = model.getActiveTarget();
+          const secondValid = { x: second.x + 10, y: second.y, z: second.z, yaw: Math.atan2(-10, 0), pitch: 0 };
+          for (let index = 0; index < 8; index += 1) model.update(secondValid, 0.25);
+          assert(model.getSnapshot().mode === "COMPLETE", "Mission did not complete");
+          assertCleared("Completion");
+        }
+      },
+      {
         name: "signal hunt timing is consistent across low and high frame rates",
         run() {
           const city = Noseview.city.generateCity(19810001);

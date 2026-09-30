@@ -12,6 +12,15 @@
     return String(Math.round(normalizeHeading(degrees))).padStart(3, "0");
   }
 
+  // Range guidance for an aimed Signal Hunt beacon beyond the model's acquisition limit.
+  function formatSignalRangeWarning(mission) {
+    if (!mission || mission.mode !== "ACTIVE" || !mission.scan) return "";
+    const scan = mission.scan;
+    if (!scan.aimed || scan.rangeState !== "TOO_FAR") return "";
+    if (!Number.isFinite(scan.distance) || !Number.isFinite(scan.maxDistance)) return "";
+    return `SIGNAL OUT OF RANGE // DIST ${scan.distance.toFixed(1)} // MAX ${scan.maxDistance.toFixed(1)}`;
+  }
+
   function createHud(documentRoot, canvasWrap) {
     const elements = {
       x: documentRoot.getElementById("pos-x"),
@@ -43,6 +52,7 @@
       missionLock: documentRoot.getElementById("mission-lock"),
       missionLockFrame: documentRoot.getElementById("mission-lock-frame"),
       missionFeedback: documentRoot.getElementById("mission-feedback"),
+      missionRange: documentRoot.getElementById("mission-range"),
       missionComplete: documentRoot.getElementById("mission-complete"),
       missionCompleteTitle: documentRoot.getElementById("mission-complete-title"),
       missionCompleteStats: documentRoot.getElementById("mission-complete-stats"),
@@ -175,6 +185,11 @@
         reasons: integrity.gameOver ? ["HULL FAILURE"] : (fuel.gameOver ? ["FUEL EXHAUSTED"] : []),
         reasonText: integrity.gameOver ? "HULL FAILURE" : (fuel.gameOver ? "FUEL EXHAUSTED" : "")
       };
+      if (elements.missionRange) {
+        const rangeWarning = survival.gameOver ? "" : formatSignalRangeWarning(mission);
+        elements.missionRange.hidden = !rangeWarning;
+        if (elements.missionRange.textContent !== rangeWarning) elements.missionRange.textContent = rangeWarning;
+      }
       const completion = mission.completion;
       if (elements.missionComplete) {
         elements.missionComplete.hidden = !completion || survival.gameOver;
@@ -211,5 +226,6 @@
 
   Noseview.ui.normalizeHeading = normalizeHeading;
   Noseview.ui.formatHeading = formatHeading;
+  Noseview.ui.formatSignalRangeWarning = formatSignalRangeWarning;
   Noseview.ui.createHud = createHud;
 }(window));

@@ -674,6 +674,7 @@
         <span id="mission-progress"></span><span id="mission-lock"></span>
         <div id="mission-lock-frame" hidden></div>
         <div id="mission-feedback" hidden></div>
+        <div id="mission-range" hidden></div>
         <div id="mission-complete" hidden><strong id="mission-complete-title"></strong><span id="mission-complete-stats"></span>
           <button id="mission-replay-button"></button><button id="mission-new-city-button"></button>
         </div>
@@ -724,6 +725,34 @@
       assert(fixture.querySelector("#mission-lock-frame").style.getPropertyValue("--lock-width") === "48px", "Lock frame did not shrink with progress");
       assert(fixture.querySelector("#mission-feedback").textContent === "SIGNAL ACQUIRED", "Acquisition feedback was not rendered as text");
       assert(!fixture.querySelector("#mission-feedback").hidden, "Acquisition feedback was hidden");
+      const missionRange = fixture.querySelector("#mission-range");
+      assert(missionRange.hidden && missionRange.textContent === "", "Range guidance appeared without an out-of-range scan");
+
+      const activeMission = snapshot.mission;
+      const tooFarScan = { aimed: true, rangeState: "TOO_FAR", distance: 42.34, minDistance: 2.5, maxDistance: 40, inCone: false };
+      snapshot.mission = { ...activeMission, lock: { active: false, progress: 0 }, scan: tooFarScan };
+      hud.update(snapshot);
+      assert(!missionRange.hidden, "Aimed out-of-range beacon lacked range guidance");
+      assert(missionRange.textContent === "SIGNAL OUT OF RANGE // DIST 42.3 // MAX 40.0", "Range guidance text changed");
+      assert(fixture.querySelector("#mission-feedback").textContent === "SIGNAL ACQUIRED" && !fixture.querySelector("#mission-feedback").hidden, "Range guidance suppressed acquisition feedback");
+      assert(fixture.querySelector("#mission-lock").textContent === "--", "Out-of-range aim showed lock progress");
+
+      snapshot.mission = { ...activeMission, scan: { ...tooFarScan, aimed: false } };
+      hud.update(snapshot);
+      assert(missionRange.hidden && missionRange.textContent === "", "Off-crosshair beacon left range guidance");
+      snapshot.mission = { ...activeMission, scan: { ...tooFarScan, rangeState: "IN_RANGE", distance: 39, inCone: true } };
+      hud.update(snapshot);
+      assert(missionRange.hidden && missionRange.textContent === "", "Valid range left stale range guidance");
+      snapshot.mission = { ...activeMission, mode: "ABORTED", scan: tooFarScan };
+      hud.update(snapshot);
+      assert(missionRange.hidden, "Inactive mission showed range guidance");
+      snapshot.mission = { ...activeMission, scan: tooFarScan };
+      snapshot.survival = { gameOver: true, reasons: ["FUEL EXHAUSTED"], reasonText: "FUEL EXHAUSTED" };
+      hud.update(snapshot);
+      assert(missionRange.hidden, "Game Over left range guidance visible");
+      snapshot.survival = { gameOver: false, reasons: [], reasonText: "" };
+      snapshot.mission = activeMission;
+      hud.update(snapshot);
       assert(fixture.querySelector("#collision-count").textContent === "7", "Collision counter was not rendered as persistent text");
       assert(!fixture.querySelector("#hull-status-row").hidden, "Hull meter was hidden while the optional HUD was off");
       assert(fixture.querySelector("#hull-integrity").style.getPropertyValue("--hull-level") === "30%", "Hull meter level changed");
