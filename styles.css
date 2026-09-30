@@ -731,12 +731,37 @@
       line-height: 1.45;
     }
 
-    .counter {
-      color: #00ff66;
+    .visitor-counter {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      margin: 6px auto;
+    }
+
+    .visitor-counter-label {
+      font: bold 9px "Courier New", monospace;
+      letter-spacing: 1px;
+    }
+
+    footer a.visitor-counter-badge {
+      display: block;
       background: #000000;
       border: 2px inset #ffffff;
-      padding: 1px 5px;
-      font: bold 12px "Courier New", monospace;
+      line-height: 0;
+    }
+
+    .visitor-counter-badge img {
+      display: block;
+      width: 88px;
+      height: 31px;
+      border: 0;
+      image-rendering: pixelated;
+    }
+
+    .visitor-counter-badge:focus-visible {
+      outline: 2px solid #00ff66;
+      outline-offset: 2px;
     }
 
     footer {

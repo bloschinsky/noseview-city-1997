@@ -27,8 +27,8 @@ terminal.
 NOSEVIEW 1997 is a compact retro-futuristic flight game with deterministic
 procedural cities, accessible controls, optional survival systems, and a timed
 Signal Hunt mission. The entire experience is plain HTML, CSS, JavaScript, and
-WebGL: no framework, dependency, build step, server, account, cookies, or
-tracking.
+WebGL: no framework, dependency, build step, server, account, or cookies —
+just one period-correct 88x31 hit counter in the footer.
 
 ## Features
 

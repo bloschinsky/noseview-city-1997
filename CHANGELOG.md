@@ -2,6 +2,13 @@
 
 Notable changes to the canonical NOSEVIEW 1997 edition are recorded here.
 
+## 1.13.2 — 2026-09-30
+
+### Changed
+
+- Replaced the fake footer visitor counter with a real centered 88x31 hit
+  counter badge from 88x31.lol.
+
 ## 1.13.1 — 2026-07-29
 
 ### Changed
